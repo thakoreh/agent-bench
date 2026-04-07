@@ -7,7 +7,7 @@ import click
 from . import __version__
 from .config import Config
 from .detector import detect_all, detect_from_config
-from .reporter import format_history, format_json, format_table
+from .reporter import format_history, format_json, format_table, format_markdown, format_baseline_table, format_baseline_markdown, format_compare
 from .runner import AgentRunner
 from .storage import Storage
 
@@ -56,9 +56,21 @@ def run(agents: str | None, task: str | None, workdir: str | None) -> None:
 @cli.command()
 @click.option("--json", "as_json", is_flag=True, help="Output as JSON")
 @click.option("--run-id", help="Specific run ID to show")
-def results(as_json: bool, run_id: str | None) -> None:
+@click.option("--baseline", help="Baseline run ID to compare against")
+@click.option("--compare", nargs=2, type=str, help="Compare two run IDs side by side")
+@click.option("--markdown", is_flag=True, help="Output as markdown")
+def results(as_json: bool, run_id: str | None, baseline: str | None, compare: tuple[str, str] | None, markdown: bool) -> None:
     """Show benchmark results."""
     storage = Storage()
+
+    if compare:
+        data_a = storage.get_run(compare[0])
+        data_b = storage.get_run(compare[1])
+        if not data_a or not data_b:
+            click.echo(f"Run not found: {compare[0] if not data_a else compare[1]}")
+            return
+        click.echo(format_compare(data_a, data_b))
+        return
 
     if run_id:
         data = storage.get_run(run_id)
@@ -69,8 +81,21 @@ def results(as_json: bool, run_id: str | None) -> None:
         click.echo("No results found. Run 'agent-bench run' first.")
         return
 
+    if baseline:
+        baseline_data = storage.get_run(baseline)
+        if baseline_data:
+            if as_json:
+                click.echo(format_json({"current": data, "baseline": baseline_data}))
+            elif markdown:
+                click.echo(format_baseline_markdown(data, baseline_data))
+            else:
+                click.echo(format_baseline_table(data, baseline_data))
+            return
+
     if as_json:
         click.echo(format_json(data))
+    elif markdown:
+        click.echo(format_markdown(data))
     else:
         click.echo(format_table(data))
 
