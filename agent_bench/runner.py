@@ -7,6 +7,7 @@ import shutil
 import subprocess
 import tempfile
 import uuid
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Optional
@@ -31,6 +32,7 @@ class AgentRunner:
         task: str,
         workdir: Optional[Path] = None,
         timeout: Optional[int] = None,
+        model: Optional[str] = None,
     ) -> dict[str, Any]:
         """Run a single agent on a task and return results dict."""
         agent_cfg = self.config.get_agent_config(agent_name)
@@ -38,8 +40,12 @@ class AgentRunner:
             raise ValueError(f"Agent '{agent_name}' not found in config")
 
         command = agent_cfg.get("command", agent_name)
-        args = agent_cfg.get("args", [])
+        args = list(agent_cfg.get("args", []))
         effective_timeout = timeout or self.config.timeout
+
+        # If model override, inject --model flag
+        if model:
+            args.extend(["--model", model])
 
         # Create isolated workspace
         source_dir = workdir or Path.cwd()
@@ -107,6 +113,7 @@ class AgentRunner:
 
             return {
                 "agent_name": agent_name,
+                "model": model or "",
                 "exit_code": metrics.exit_code,
                 "duration_seconds": metrics.duration_seconds,
                 "tokens_in": metrics.tokens_in,
@@ -134,6 +141,8 @@ class AgentRunner:
         task: Optional[str] = None,
         agents: Optional[list[str]] = None,
         workdir: Optional[Path] = None,
+        parallel: bool = False,
+        models: Optional[list[str]] = None,
     ) -> dict[str, Any]:
         """Run all (or specified) agents on a task."""
         effective_task = task or self.config.default_task
@@ -143,11 +152,25 @@ class AgentRunner:
         run_id = datetime.now().strftime("%Y%m%d-%H%M%S") + "-" + uuid.uuid4().hex[:6]
         agent_list = agents or list(self.config.agents.keys())
 
-        results = []
-        for agent_name in agent_list:
-            print(f"Running {agent_name}...")
-            result = self.run_agent(agent_name, effective_task, workdir)
-            results.append(result)
+        # If models specified, expand agent list to include model variants
+        if models:
+            expanded: list[tuple[str, Optional[str]]] = []
+            for agent_name in agent_list:
+                for model in models:
+                    expanded.append((agent_name, model))
+        else:
+            expanded = [(a, None) for a in agent_list]
+
+        results: list[dict[str, Any]] = []
+
+        if parallel and len(expanded) > 1:
+            results = self.run_parallel(expanded, effective_task, workdir)
+        else:
+            for agent_name, model in expanded:
+                label = agent_name if not model else f"{agent_name}/{model}"
+                print(f"Running {label}...")
+                result = self.run_agent(agent_name, effective_task, workdir, model=model)
+                results.append(result)
 
         # Save to storage
         self.storage.save_run(run_id, effective_task, results)
@@ -158,6 +181,39 @@ class AgentRunner:
             "timestamp": datetime.now().isoformat(),
             "results": results,
         }
+
+    def run_parallel(
+        self,
+        agent_model_pairs: list[tuple[str, Optional[str]]],
+        task: str,
+        workdir: Optional[Path] = None,
+        max_workers: Optional[int] = None,
+    ) -> list[dict[str, Any]]:
+        """Run multiple agents in parallel using ThreadPoolExecutor."""
+        workers = max_workers or min(4, len(agent_model_pairs))
+        results: list[dict[str, Any]] = []
+
+        with ThreadPoolExecutor(max_workers=workers) as executor:
+            futures = {}
+            for agent_name, model in agent_model_pairs:
+                label = agent_name if not model else f"{agent_name}/{model}"
+                print(f"Submitting {label}...")
+                future = executor.submit(
+                    self.run_agent, agent_name, task, workdir, model=model
+                )
+                futures[future] = (agent_name, model)
+
+            for future in as_completed(futures):
+                agent_name, model = futures[future]
+                label = agent_name if not model else f"{agent_name}/{model}"
+                try:
+                    result = future.result()
+                    results.append(result)
+                    print(f"Completed {label}")
+                except Exception as e:
+                    print(f"Failed {label}: {e}")
+
+        return results
 
     def _get_diff_stat(self, original: Path, modified: Path) -> str:
         """Get diff stat between original and modified directories."""
