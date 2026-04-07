@@ -4,7 +4,7 @@ build-backend = "setuptools.backends._legacy:_Backend"
 
 [project]
 name = "agent-bench"
-version = "0.1.0"
+version = "0.2.0"
 description = "Benchmark AI coding agents against each other on the same task"
 readme = "README.md"
 license = {text = "MIT"}

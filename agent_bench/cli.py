@@ -8,6 +8,7 @@ from . import __version__
 from .config import Config
 from .detector import detect_all, detect_from_config
 from .reporter import format_history, format_json, format_table, format_markdown, format_baseline_table, format_baseline_markdown, format_compare
+from .web_reporter import generate_html
 from .runner import AgentRunner
 from .storage import Storage
 
@@ -59,7 +60,9 @@ def run(agents: str | None, task: str | None, workdir: str | None) -> None:
 @click.option("--baseline", help="Baseline run ID to compare against")
 @click.option("--compare", nargs=2, type=str, help="Compare two run IDs side by side")
 @click.option("--markdown", is_flag=True, help="Output as markdown")
-def results(as_json: bool, run_id: str | None, baseline: str | None, compare: tuple[str, str] | None, markdown: bool) -> None:
+@click.option("--html", "as_html", is_flag=True, help="Output as HTML report")
+@click.option("--output", "-o", default=None, help="Output file path (for --html)")
+def results(as_json: bool, run_id: str | None, baseline: str | None, compare: tuple[str, str] | None, markdown: bool, as_html: bool, output: str | None) -> None:
     """Show benchmark results."""
     storage = Storage()
 
@@ -84,7 +87,15 @@ def results(as_json: bool, run_id: str | None, baseline: str | None, compare: tu
     if baseline:
         baseline_data = storage.get_run(baseline)
         if baseline_data:
-            if as_json:
+            if as_html:
+                html_content = generate_html(data, baseline_data)
+                if output:
+                    from pathlib import Path
+                    Path(output).write_text(html_content)
+                    click.echo(f"HTML report saved to {output}")
+                else:
+                    click.echo(html_content)
+            elif as_json:
                 click.echo(format_json({"current": data, "baseline": baseline_data}))
             elif markdown:
                 click.echo(format_baseline_markdown(data, baseline_data))
@@ -92,10 +103,42 @@ def results(as_json: bool, run_id: str | None, baseline: str | None, compare: tu
                 click.echo(format_baseline_table(data, baseline_data))
             return
 
-    if as_json:
+    if as_html:
+        html_content = generate_html(data)
+        if output:
+            from pathlib import Path
+            Path(output).write_text(html_content)
+            click.echo(f"HTML report saved to {output}")
+        else:
+            click.echo(html_content)
+    elif as_json:
         click.echo(format_json(data))
     elif markdown:
         click.echo(format_markdown(data))
+    else:
+        click.echo(format_table(data))
+
+
+@cli.command()
+@click.option("--html", "as_html", is_flag=True, help="Output as HTML report")
+@click.option("--output", "-o", default=None, help="Output file path (for --html)")
+def report(as_html: bool, output: str | None) -> None:
+    """Generate a report from the latest benchmark run."""
+    storage = Storage()
+    data = storage.get_latest_run()
+
+    if not data:
+        click.echo("No results found. Run 'agent-bench run' first.")
+        return
+
+    if as_html:
+        html_content = generate_html(data)
+        if output:
+            from pathlib import Path
+            Path(output).write_text(html_content)
+            click.echo(f"HTML report saved to {output}")
+        else:
+            click.echo(html_content)
     else:
         click.echo(format_table(data))
 
