@@ -1,5 +1,10 @@
 # agent-bench
 
+[![Python 3.9+](https://img.shields.io/badge/python-3.9%2B-blue.svg)](https://github.com/thakoreh/agent-bench)
+[![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
+[![Tests: 96](https://img.shields.io/badge/tests-96%20passed-brightgreen.svg)]
+
+
 Benchmark AI coding agents against each other on the same task.
 
 Run the **same coding task** across Claude Code, Codex CLI, Gemini CLI, Aider, OpenClaw, and more — then compare cost, speed, token usage, code quality, and test pass rate.
