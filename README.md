@@ -16,7 +16,7 @@ No existing tool lets regular devs compare AI coding agents head-to-head on **th
 ## Install
 
 ```bash
-pip install agent-bench
+pip install cli-agent-bench
 ```
 
 ## Quick Start

@@ -1,10 +1,10 @@
 [build-system]
 requires = ["setuptools>=68.0", "wheel"]
-build-backend = "setuptools.backends._legacy:_Backend"
+build-backend = "setuptools.build_meta"
 
 [project]
-name = "agent-bench"
-version = "0.2.0"
+name = "cli-agent-bench"
+version = "0.2.1"
 description = "Benchmark AI coding agents against each other on the same task"
 readme = "README.md"
 license = {text = "MIT"}
@@ -26,6 +26,7 @@ dependencies = [
 
 [project.scripts]
 agent-bench = "agent_bench.cli:cli"
+cli-agent-bench = "agent_bench.cli:cli"
 
 [project.optional-dependencies]
 dev = ["pytest>=7.0", "pytest-mock>=3.0"]
