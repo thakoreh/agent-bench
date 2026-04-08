@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.3.0 (2026-04-08)
+
+### New Features
+- **`--parallel` flag on `run`**: run agents simultaneously with `agent-bench run --parallel`
+- **`--model` flag on `run`**: override model per agent with `agent-bench run --model gpt-4o,claude-sonnet-4`
+- **`trend` command**: show quality score trends across runs with `--json` and `--agent` filters
+- **`delete` command**: clean up old runs with `agent-bench delete <run-id> --force`
+- **`Storage.delete_run`**: removes a run and all its results
+- **`Storage.get_agent_history`**: query all results for a specific agent
+- **Model field in storage**: agent_results now stores the model name
+
+### Improvements
+- 18 new tests (147 total)
+- Better CLI discoverability (help text for new flags)
+
 ## 0.2.0 (2026-04-07)
 
 ### New Features

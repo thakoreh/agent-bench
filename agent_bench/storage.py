@@ -41,6 +41,7 @@ class Storage:
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 run_id TEXT NOT NULL,
                 agent_name TEXT NOT NULL,
+                model TEXT DEFAULT '',
                 exit_code INTEGER,
                 duration_seconds REAL,
                 tokens_in INTEGER,
@@ -74,12 +75,12 @@ class Storage:
         for r in results:
             conn.execute(
                 """INSERT INTO agent_results
-                (run_id, agent_name, exit_code, duration_seconds, tokens_in, tokens_out,
+                (run_id, agent_name, model, exit_code, duration_seconds, tokens_in, tokens_out,
                  cost, files_changed, lines_added, lines_removed, test_pass, test_total,
                  lint_errors, lint_warnings, quality_score, quality_grade, stdout, stderr)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
                 (
-                    run_id, r.get("agent_name"), r.get("exit_code"),
+                    run_id, r.get("agent_name"), r.get("model", ""), r.get("exit_code"),
                     r.get("duration_seconds"), r.get("tokens_in"), r.get("tokens_out"),
                     r.get("cost"), r.get("files_changed"), r.get("lines_added"),
                     r.get("lines_removed"), r.get("test_pass"), r.get("test_total"),
@@ -123,6 +124,31 @@ class Storage:
         if not runs:
             return None
         return self.get_run(runs[0]["run_id"])
+
+    def delete_run(self, run_id: str) -> bool:
+        """Delete a run and all its results. Returns True if deleted."""
+        conn = self._get_conn()
+        # Check existence
+        run = conn.execute("SELECT run_id FROM runs WHERE run_id = ?", (run_id,)).fetchone()
+        if not run:
+            return False
+        conn.execute("DELETE FROM agent_results WHERE run_id = ?", (run_id,))
+        conn.execute("DELETE FROM runs WHERE run_id = ?", (run_id,))
+        conn.commit()
+        return True
+
+    def get_agent_history(self, agent_name: str, limit: int = 20) -> list[dict[str, Any]]:
+        """Get all results for a specific agent across runs."""
+        conn = self._get_conn()
+        rows = conn.execute(
+            """SELECT ar.*, r.task, r.timestamp as run_timestamp
+               FROM agent_results ar
+               JOIN runs r ON ar.run_id = r.run_id
+               WHERE ar.agent_name = ?
+               ORDER BY r.timestamp DESC LIMIT ?""",
+            (agent_name, limit),
+        ).fetchall()
+        return [dict(r) for r in rows]
 
     def close(self) -> None:
         if self._conn:

@@ -40,16 +40,19 @@ def init(path: str) -> None:
 @click.option("--agent", "-a", "agents", help="Comma-separated agent names to run")
 @click.option("--task", "-t", help="Task prompt (overrides config default)")
 @click.option("--workdir", "-w", type=click.Path(exists=True), help="Working directory")
-def run(agents: str | None, task: str | None, workdir: str | None) -> None:
+@click.option("--parallel", "-p", is_flag=True, help="Run agents in parallel")
+@click.option("--model", "-m", "models", help="Comma-separated models to test (adds --model to each agent)")
+def run(agents: str | None, task: str | None, workdir: str | None, parallel: bool, models: str | None) -> None:
     """Run agents on a task and compare results."""
     from pathlib import Path
 
     config = Config()
     agent_list = agents.split(",") if agents else None
+    model_list = models.split(",") if models else None
     wd = Path(workdir) if workdir else None
 
     runner = AgentRunner(config)
-    result = runner.run_all(task=task, agents=agent_list, workdir=wd)
+    result = runner.run_all(task=task, agents=agent_list, workdir=wd, parallel=parallel, models=model_list)
 
     click.echo(format_table(result))
 
@@ -169,6 +172,135 @@ def agents() -> None:
 
     installed = sum(1 for d in detected if d.installed)
     console.print(f"\n  {installed}/{len(detected)} agents available\n")
+
+
+@cli.command(name="delete")
+@click.argument("run_id")
+@click.option("--force", "-f", is_flag=True, help="Skip confirmation")
+def delete_run(run_id: str, force: bool) -> None:
+    """Delete a benchmark run by ID."""
+    storage = Storage()
+    data = storage.get_run(run_id)
+
+    if not data:
+        click.echo(f"Run '{run_id}' not found.")
+        storage.close()
+        return
+
+    if not force:
+        click.echo(f"About to delete run '{run_id}' ({data.get('task', '?')[:50]})")
+        if not click.confirm("Proceed?"):
+            click.echo("Cancelled.")
+            storage.close()
+            return
+
+    storage.delete_run(run_id)
+    click.echo(f"Deleted run '{run_id}'.")
+    storage.close()
+
+
+@cli.command()
+@click.option("--limit", "-n", default=10, help="Number of recent runs to analyze")
+@click.option("--agent", "-a", default=None, help="Filter by agent name")
+@click.option("--json", "as_json", is_flag=True, help="Output as JSON")
+def trend(limit: int, agent: str | None, as_json: bool) -> None:
+    """Show quality score trend across recent runs."""
+    storage = Storage()
+    runs = storage.list_runs(limit=limit)
+
+    if not runs:
+        click.echo("No benchmark runs found.")
+        storage.close()
+        return
+
+    # Collect scores per agent across runs
+    from collections import defaultdict
+    agent_scores: dict[str, list[tuple[str, float, str]]] = defaultdict(list)
+
+    for run_info in reversed(runs):  # chronological order
+        run_data = storage.get_run(run_info["run_id"])
+        if not run_data:
+            continue
+        for r in run_data.get("results", []):
+            name = r.get("agent_name", "?")
+            if agent and name != agent:
+                continue
+            score = r.get("quality_score", 0)
+            grade = r.get("quality_grade", "?")
+            agent_scores[name].append((run_info["run_id"], score, grade))
+
+    if not agent_scores:
+        click.echo("No results found for the given filters.")
+        storage.close()
+        return
+
+    if as_json:
+        import json
+        output = {}
+        for name, entries in agent_scores.items():
+            output[name] = [
+                {"run_id": rid, "score": score, "grade": grade}
+                for rid, score, grade in entries
+            ]
+        click.echo(json.dumps(output, indent=2))
+    else:
+        from rich.console import Console
+        from rich.table import Table
+        from rich import box
+
+        console = Console()
+        table = Table(
+            title="Quality Score Trend",
+            box=box.ROUNDED,
+            title_style="bold cyan",
+        )
+        table.add_column("Agent", style="bold")
+        table.add_column("Runs", justify="right")
+        table.add_column("Avg Score", justify="right")
+        table.add_column("Trend", justify="center")
+        table.add_column("Best", justify="right")
+        table.add_column("Worst", justify="right")
+
+        for name, entries in sorted(agent_scores.items()):
+            scores = [e[1] for e in entries]
+            avg = sum(scores) / len(scores)
+            best = max(scores)
+            worst = min(scores)
+
+            # Simple trend: compare last 3 avg to first 3 avg
+            if len(scores) >= 3:
+                recent = sum(scores[-3:]) / 3
+                early = sum(scores[:3]) / 3
+                delta = recent - early
+                if delta > 5:
+                    trend_str = "[green]↑ improving[/green]"
+                elif delta < -5:
+                    trend_str = "[red]↓ declining[/red]"
+                else:
+                    trend_str = "[yellow]→ stable[/yellow]"
+            elif len(scores) >= 2:
+                delta = scores[-1] - scores[0]
+                if delta > 5:
+                    trend_str = "[green]↑[/green]"
+                elif delta < -5:
+                    trend_str = "[red]↓[/red]"
+                else:
+                    trend_str = "[yellow]→[/yellow]"
+            else:
+                trend_str = "—"
+
+            table.add_row(
+                name,
+                str(len(entries)),
+                f"{avg:.1f}",
+                trend_str,
+                f"{best:.0f}",
+                f"{worst:.0f}",
+            )
+
+        console.print(table)
+
+    storage.close()
 
 
 if __name__ == "__main__":
