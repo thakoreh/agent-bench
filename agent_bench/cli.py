@@ -7,7 +7,7 @@ import click
 from . import __version__
 from .config import Config
 from .detector import detect_all, detect_from_config
-from .reporter import format_history, format_json, format_table, format_markdown, format_baseline_table, format_baseline_markdown, format_compare
+from .reporter import format_history, format_json, format_table, format_markdown, format_baseline_table, format_baseline_markdown, format_compare, format_csv, format_breakdown_table, format_breakdown_markdown, format_leaderboard_table, format_leaderboard_markdown, format_leaderboard_json
 from .web_reporter import generate_html
 from .runner import AgentRunner
 from .storage import Storage
@@ -63,9 +63,12 @@ def run(agents: str | None, task: str | None, workdir: str | None, parallel: boo
 @click.option("--baseline", help="Baseline run ID to compare against")
 @click.option("--compare", nargs=2, type=str, help="Compare two run IDs side by side")
 @click.option("--markdown", is_flag=True, help="Output as markdown")
+@click.option("--csv", "as_csv", is_flag=True, help="Output as CSV")
+@click.option("--breakdown", is_flag=True, help="Show scoring breakdown")
+@click.option("--sort-by", type=click.Choice(["quality", "cost-efficiency"]), default="quality", help="Sort results")
 @click.option("--html", "as_html", is_flag=True, help="Output as HTML report")
-@click.option("--output", "-o", default=None, help="Output file path (for --html)")
-def results(as_json: bool, run_id: str | None, baseline: str | None, compare: tuple[str, str] | None, markdown: bool, as_html: bool, output: str | None) -> None:
+@click.option("--output", "-o", default=None, help="Output file path (for --html, --csv)")
+def results(as_json: bool, run_id: str | None, baseline: str | None, compare: tuple[str, str] | None, markdown: bool, as_csv: bool, breakdown: bool, sort_by: str, as_html: bool, output: str | None) -> None:
     """Show benchmark results."""
     storage = Storage()
 
@@ -106,7 +109,20 @@ def results(as_json: bool, run_id: str | None, baseline: str | None, compare: tu
                 click.echo(format_baseline_table(data, baseline_data))
             return
 
-    if as_html:
+    if as_csv:
+        csv_content = format_csv(data)
+        if output:
+            from pathlib import Path
+            Path(output).write_text(csv_content)
+            click.echo(f"CSV saved to {output}")
+        else:
+            click.echo(csv_content)
+    elif breakdown:
+        if markdown:
+            click.echo(format_breakdown_markdown(data))
+        else:
+            click.echo(format_breakdown_table(data))
+    elif as_html:
         html_content = generate_html(data)
         if output:
             from pathlib import Path
@@ -119,7 +135,7 @@ def results(as_json: bool, run_id: str | None, baseline: str | None, compare: tu
     elif markdown:
         click.echo(format_markdown(data))
     else:
-        click.echo(format_table(data))
+        click.echo(format_table(data, sort_by=sort_by))
 
 
 @cli.command()
@@ -148,11 +164,16 @@ def report(as_html: bool, output: str | None) -> None:
 
 @cli.command()
 @click.option("--limit", "-n", default=10, help="Number of runs to show")
-def history(limit: int) -> None:
+@click.option("--json", "as_json", is_flag=True, help="Output as JSON")
+def history(limit: int, as_json: bool) -> None:
     """Show past benchmark runs."""
     storage = Storage()
     runs = storage.list_runs(limit=limit)
-    click.echo(format_history(runs))
+    if as_json:
+        import json as _json
+        click.echo(_json.dumps(runs, indent=2))
+    else:
+        click.echo(format_history(runs))
 
 
 @cli.command()
@@ -172,6 +193,56 @@ def agents() -> None:
 
     installed = sum(1 for d in detected if d.installed)
     console.print(f"\n  {installed}/{len(detected)} agents available\n")
+
+
+@cli.command()
+@click.option("--limit", "-n", default=10, help="Number of agents to show")
+@click.option("--json", "as_json", is_flag=True, help="Output as JSON")
+@click.option("--markdown", is_flag=True, help="Output as markdown")
+def leaderboard(limit: int, as_json: bool, markdown: bool) -> None:
+    """Show aggregated leaderboard across all runs."""
+    storage = Storage()
+    lb = _compute_leaderboard(storage, limit)
+    if as_json:
+        click.echo(format_leaderboard_json(lb))
+    elif markdown:
+        click.echo(format_leaderboard_markdown(lb))
+    else:
+        click.echo(format_leaderboard_table(lb))
+    storage.close()
+
+
+def _compute_leaderboard(storage: Storage, limit: int) -> list[dict]:
+    """Compute leaderboard data from storage."""
+    from collections import defaultdict
+    runs = storage.list_runs(limit=1000)
+    agent_stats: dict[str, dict] = defaultdict(lambda: {"scores": [], "runs": 0, "wins": 0})
+
+    for run_info in runs:
+        run_data = storage.get_run(run_info["run_id"])
+        if not run_data or not run_data.get("results"):
+            continue
+        best_score = max(r.get("quality_score", 0) for r in run_data["results"])
+        for r in run_data["results"]:
+            name = r.get("agent_name", "?")
+            score = r.get("quality_score", 0)
+            agent_stats[name]["scores"].append(score)
+            agent_stats[name]["runs"] += 1
+            if score == best_score:
+                agent_stats[name]["wins"] += 1
+
+    leaderboard = []
+    for name, stats in agent_stats.items():
+        scores = stats["scores"]
+        leaderboard.append({
+            "agent": name,
+            "avg_score": sum(scores) / len(scores) if scores else 0,
+            "best_score": max(scores) if scores else 0,
+            "total_runs": stats["runs"],
+            "wins": stats["wins"],
+        })
+    leaderboard.sort(key=lambda x: x["avg_score"], reverse=True)
+    return leaderboard[:limit]
 
 
 @cli.command(name="delete")
