@@ -341,4 +341,4 @@ class TestCLIReport:
 class TestCLIVersion:
     def test_version_bumped(self, runner):
         result = runner.invoke(cli, ["--version"])
-        assert "0.3.0" in result.output
+        assert "0.4.0" in result.output

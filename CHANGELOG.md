@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.4.0 (2026-04-09)
+
+### New Features
+- **CSV export**: `agent-bench results --csv -o results.csv` exports all metrics
+- **Leaderboard command**: `agent-bench leaderboard` aggregates scores across all runs (avg, best, wins, total runs)
+- **Scoring breakdown**: `agent-bench results --breakdown` shows per-factor scoring (test pass rate, lint, diff, speed, etc.)
+- **History JSON**: `agent-bench history --json` for programmatic access
+- **Cost efficiency metric**: `quality_score / max(cost, 0.01)` column in results table
+- **Sort by cost efficiency**: `agent-bench results --sort-by cost-efficiency`
+
+### Tests
+- 19 new tests (166 total)
+- Edge case coverage: empty leaderboard, special characters in CSV, zero-metric breakdown, empty history JSON
+
 ## 0.3.0 (2026-04-08)
 
 ### New Features

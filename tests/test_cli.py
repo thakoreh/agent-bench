@@ -62,4 +62,4 @@ class TestHistory:
 class TestVersion:
     def test_version(self, runner):
         result = runner.invoke(cli, ["--version"])
-        assert "0.3.0" in result.output
+        assert "0.4.0" in result.output
