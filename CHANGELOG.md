@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.4.1 (2026-04-11)
+
+### Bug Fixes
+- Fixed 3 failing tests: `--compare` takes 2 separate args (not comma-separated), `Config.get_agent_config()` returns `{}` not `None`, empty model string handled gracefully
+
+### Tests
+- 49 new edge case tests (229 total)
+- Full coverage: collector, scorer, pricing, config, storage, reporter
+- Letter grade boundary testing
+- Import issue detection edge cases
+
 ## 0.4.0 (2026-04-09)
 
 ### New Features
