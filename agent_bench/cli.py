@@ -11,6 +11,8 @@ from .reporter import format_history, format_json, format_table, format_markdown
 from .web_reporter import generate_html
 from .runner import AgentRunner
 from .storage import Storage
+from rich.console import Console as rich_console
+from rich.table import Table as rich_table
 
 
 @click.group()
@@ -371,6 +373,87 @@ def trend(limit: int, agent: str | None, as_json: bool) -> None:
 
         console.print(table)
 
+    storage.close()
+
+
+@cli.command()
+@click.option("--agent", "-a", required=True, help="Agent name to compare models")
+@click.option("--models", "-m", required=True, help="Comma-separated model names to compare")
+@click.option("--task", "-t", help="Task prompt (overrides config default)")
+@click.option("--workdir", "-w", type=click.Path(exists=True), help="Working directory")
+@click.option("--limit", "-l", default=5, help="Number of runs to compare per model")
+def compare_models(agent: str, models: str, task: str | None, workdir: str | None, limit: int) -> None:
+    """Compare different models for the same agent."""
+    from collections import defaultdict
+    
+    storage = Storage()
+    model_list = [m.strip() for m in models.split(",")]
+    
+    # Collect results for each model
+    model_results: dict[str, list[dict]] = defaultdict(list)
+    
+    # Get runs that match the agent and models
+    runs = storage.list_runs(limit=1000)
+    for run_info in reversed(runs):
+        run_data = storage.get_run(run_info["run_id"])
+        if not run_data:
+            continue
+            
+        for result in run_data.get("results", []):
+            if result.get("agent_name") == agent and result.get("model") in model_list:
+                model_results[result["model"]].append(result)
+    
+    # Limit results per model
+    for model in model_list:
+        model_results[model] = model_results[model][:limit]
+    
+    # Generate comparison table
+    console = rich_console()
+    table = rich_table(title=f"Model Comparison: {agent}")
+    table.add_column("Model", justify="left", style="cyan")
+    table.add_column("Avg Score", justify="right", style="bold green")
+    table.add_column("Avg Duration", justify="right")
+    table.add_column("Runs", justify="right")
+    table.add_column("Best Score", justify="right", style="bold yellow")
+    table.add_column("Worst Score", justify="right", style="dim red")
+    
+    for model in model_list:
+        results = model_results[model]
+        if not results:
+            table.add_row(model, "N/A", "N/A", "0", "N/A", "N/A")
+            continue
+            
+        scores = [r.get("quality_score", 0) for r in results]
+        durations = [r.get("duration_seconds", 0) for r in results]
+        
+        avg_score = sum(scores) / len(scores)
+        avg_duration = sum(durations) / len(durations)
+        best = max(scores)
+        worst = min(scores)
+        
+        table.add_row(
+            model,
+            f"{avg_score:.1f}",
+            f"{avg_duration:.1f}s",
+            str(len(results)),
+            f"{best:.1f}",
+            f"{worst:.1f}",
+        )
+    
+    console.print(table)
+    
+    # Add detailed breakdown
+    click.echo("\nDetailed Results:")
+    for model in model_list:
+        results = model_results[model]
+        if results:
+            click.echo(f"\n📊 {model} (top {min(3, len(results))} results):")
+            for i, result in enumerate(sorted(results, key=lambda x: x.get("quality_score", 0), reverse=True)[:3]):
+                score = result.get("quality_score", 0)
+                duration = result.get("duration_seconds", 0)
+                run_id = result.get("run_id", "unknown")
+                click.echo(f"   {i+1}. Score: {score:.1f}, Duration: {duration:.1f}s, Run: {run_id}")
+    
     storage.close()
 
 
