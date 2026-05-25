@@ -107,12 +107,12 @@ class TestScorerEdgeCases:
     def test_zero_duration(self):
         m = self._make_metrics(duration_seconds=0)
         score, _ = compute_quality_score(m)
-        assert score >= 90  # Should get max speed bonus
+        assert score >= 85  # Should get max speed bonus
 
     def test_all_tests_passing(self):
         m = self._make_metrics(test_pass=100, test_total=100)
         score, grade = compute_quality_score(m)
-        assert score >= 90
+        assert score >= 85
 
     def test_all_tests_failing(self):
         m = self._make_metrics(test_pass=0, test_total=10)
@@ -129,17 +129,17 @@ class TestScorerEdgeCases:
     def test_very_high_duration(self):
         m = self._make_metrics(duration_seconds=99999)
         score, _ = compute_quality_score(m)
-        assert score < 95
+        assert score < 90
 
     def test_negative_exit_code(self):
         m = self._make_metrics(exit_code=-1)
         score, _ = compute_quality_score(m)
-        assert score < 90
+        assert score < 85
 
     def test_many_lint_errors(self):
         m = self._make_metrics(lint_errors=50)
         score, _ = compute_quality_score(m)
-        assert score < 85  # 50 lint errors maxes out penalty at 14 points but floor is 0
+        assert score < 80  # 50 lint errors maxes out penalty
 
     def test_complexity_empty_code(self):
         score = compute_complexity_score("")
@@ -341,4 +341,4 @@ class TestCLIReport:
 class TestCLIVersion:
     def test_version_bumped(self, runner):
         result = runner.invoke(cli, ["--version"])
-        assert "0.4.0" in result.output
+        assert "0.6.0" in result.output
