@@ -17,11 +17,10 @@ def compute_complexity_score(code: str) -> float:
     """
     try:
         from radon.complexity import cc_visit
-        from radon.visitors import ComplexityVisitor
     except ImportError:
         return 50.0
 
-    if not code.strip():
+    if not code or not str(code).strip():
         return 50.0
 
     try:
@@ -40,6 +39,8 @@ def compute_complexity_score(code: str) -> float:
 
 def _count_import_issues(stdout: str, stderr: str) -> int:
     """Count import-related issues in agent output."""
+    stdout = stdout or ""
+    stderr = stderr or ""
     issues = 0
     combined = f"{stdout}\n{stderr}"
     # Match common import errors
@@ -52,6 +53,7 @@ def _count_import_issues(stdout: str, stderr: str) -> int:
 
 def _count_unused_imports(stdout: str) -> int:
     """Count unused import warnings (from linters)."""
+    stdout = stdout or ""
     return len(re.findall(r"F401|unused import", stdout))
 
 
@@ -63,7 +65,7 @@ def compute_docstring_coverage(code: str) -> float:
 
     Returns 50.0 (neutral) if the code cannot be parsed.
     """
-    if not code.strip():
+    if not code or not str(code).strip():
         return 50.0
 
     try:
@@ -109,7 +111,7 @@ def compute_type_hint_coverage(code: str) -> float:
 
     Returns 50.0 (neutral) if the code cannot be parsed.
     """
-    if not code.strip():
+    if not code or not str(code).strip():
         return 50.0
 
     try:
@@ -162,7 +164,7 @@ def compute_comment_density(code: str) -> float:
     Returns a value between 0.0 and 1.0.
     Returns 0.15 (neutral) if the code is empty.
     """
-    if not code.strip():
+    if not code or not str(code).strip():
         return 0.15
 
     lines = code.splitlines()
@@ -186,6 +188,8 @@ def _code_cleanliness_penalty(stdout: str, stderr: str) -> float:
 
     Returns 0.0 if clean, up to 5.0 for severe issues.
     """
+    stdout = stdout or ""
+    stderr = stderr or ""
     combined = f"{stdout}\n{stderr}"
     crashes = len(re.findall(
         r"Traceback|SyntaxError|RuntimeError|segfault|core dumped",
@@ -254,7 +258,7 @@ def compute_quality_score(metrics: RunMetrics) -> tuple[float, str]:
         score += 2
 
     # Speed bonus: 7 points
-    duration: float = metrics.duration_seconds
+    duration: float = metrics.duration_seconds or 0.0
     if duration <= 30:
         score += 7
     elif duration <= 120:
@@ -267,8 +271,10 @@ def compute_quality_score(metrics: RunMetrics) -> tuple[float, str]:
         score += 0
 
     # Import hygiene: 7 points
-    import_issues: int = _count_import_issues(metrics.stdout, metrics.stderr)
-    unused_imports: int = _count_unused_imports(metrics.stdout)
+    stdout: str = metrics.stdout or ""
+    stderr: str = metrics.stderr or ""
+    import_issues: int = _count_import_issues(stdout, stderr)
+    unused_imports: int = _count_unused_imports(stdout)
     total_import_issues: int = import_issues + unused_imports
     if total_import_issues == 0:
         score += 7
@@ -280,19 +286,19 @@ def compute_quality_score(metrics: RunMetrics) -> tuple[float, str]:
         score += 0
 
     # Complexity: 6 points
-    complexity: float = compute_complexity_score(metrics.stdout)
+    complexity: float = compute_complexity_score(stdout)
     score += complexity * 0.06
 
     # Docstring coverage: 7 points
-    docstring_cov: float = compute_docstring_coverage(metrics.stdout)
+    docstring_cov: float = compute_docstring_coverage(stdout)
     score += docstring_cov * 0.07
 
     # Type hint coverage: 7 points
-    type_hint_cov: float = compute_type_hint_coverage(metrics.stdout)
+    type_hint_cov: float = compute_type_hint_coverage(stdout)
     score += type_hint_cov * 0.07
 
     # Comment density: 5 points
-    comment_density: float = compute_comment_density(metrics.stdout)
+    comment_density: float = compute_comment_density(stdout)
     if 0.1 <= comment_density <= 0.3:
         score += 5
     elif comment_density < 0.1:
@@ -301,7 +307,7 @@ def compute_quality_score(metrics: RunMetrics) -> tuple[float, str]:
         score += max(0, 5 - (comment_density - 0.3) * 15)
 
     # Code cleanliness: 4 points (penalty-based)
-    score += 4 - _code_cleanliness_penalty(metrics.stdout, metrics.stderr)
+    score += 4 - _code_cleanliness_penalty(stdout, stderr)
 
     return min(100, score), _letter_grade(score)
 

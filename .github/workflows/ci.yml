@@ -9,52 +9,35 @@ on:
 jobs:
   test:
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.10", "3.11", "3.12"]
+
     steps:
       - uses: actions/checkout@v4
-        with:
-          persist-credentials: true
-          token: ${{ secrets.GITHUB_TOKEN }}
 
-      - uses: actions/setup-python@v5
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
         with:
-          python-version: "3.10"
+          python-version: ${{ matrix.python-version }}
 
-      - name: Install
+      - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
           pip install -e ".[dev]"
           pip install radon
 
-      - name: Run tests per file
+      - name: Lint with ruff
         run: |
-          rm -f ci_results.txt
-          PASS=0
-          FAIL=0
-          for f in tests/test_scorer.py tests/test_extended.py tests/test_edge_cases.py tests/test_new_scoring.py tests/test_web_radar.py tests/test_v5_features.py tests/test_v4_features.py tests/test_model_comparison.py tests/test_nightshift_improvements.py; do
-            if [ -f "$f" ]; then
-              OUT=$(python -m pytest "$f" -v --tb=long 2>&1) || true
-              if echo "$OUT" | tail -1 | grep -q "passed"; then
-                PASS=$((PASS+1))
-                echo "PASS: $f" >> ci_results.txt
-              else
-                FAIL=$((FAIL+1))
-                echo "FAIL: $f" >> ci_results.txt
-                echo "$OUT" >> ci_results.txt
-              fi
-            fi
-          done
-          echo "--- SUMMARY: $PASS passed, $FAIL failed ---" >> ci_results.txt
+          pip install ruff
+          ruff check agent_bench/ tests/ --ignore=E501
+        continue-on-error: true
 
-      - name: Push results
+      - name: Run tests
         run: |
-          git config user.name "ci-bot"
-          git config user.email "ci@bot.com"
-          git add ci_results.txt
-          git commit -m "ci: per-file test results" || true
-          git push origin master || true
-
-      - name: Run all tests
-        run: python -m pytest tests/ -v --tb=short
+          python -m pytest tests/ -v --tb=short 2>&1 | tee /tmp/pytest_output.txt
+          exit ${PIPESTATUS[0]}
 
       - name: Check type hints
         run: |
