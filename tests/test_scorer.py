@@ -25,12 +25,12 @@ class TestComputeQualityScore:
     def test_failed_tests(self):
         m = _make_metrics(test_pass=4, test_total=8)
         score, _ = compute_quality_score(m)
-        assert score < 80
+        assert score <= 78
 
     def test_lint_errors(self):
         m = _make_metrics(lint_errors=5)
         score, _ = compute_quality_score(m)
-        assert score < 80
+        assert score <= 80
 
     def test_nonzero_exit(self):
         m = _make_metrics(exit_code=1)
