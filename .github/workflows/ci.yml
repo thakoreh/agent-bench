@@ -42,7 +42,12 @@ jobs:
         continue-on-error: true
 
       - name: Run tests
-        run: python -m pytest tests/ -v --tb=long
+        run: |
+          python -m pytest tests/ -v --tb=long 2>&1 | tee /tmp/pytest_output.txt
+          echo "## Pytest Output" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          cat /tmp/pytest_output.txt >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
 
       - name: Check type hints
         run: |
