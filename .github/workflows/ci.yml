@@ -10,6 +10,7 @@ jobs:
   test:
     runs-on: ubuntu-latest
     strategy:
+      fail-fast: false
       matrix:
         python-version: ["3.10", "3.11", "3.12"]
 
@@ -35,6 +36,9 @@ jobs:
           python -c "import agent_bench.web_reporter; print('web_reporter OK')"
           python -c "import agent_bench.collector; print('collector OK')"
 
+      - name: Collect tests
+        run: python -m pytest tests/ --collect-only -q
+
       - name: Lint with ruff
         run: |
           pip install ruff
@@ -42,12 +46,7 @@ jobs:
         continue-on-error: true
 
       - name: Run tests
-        run: |
-          python -m pytest tests/ -v --tb=long 2>&1 | tee /tmp/pytest_output.txt
-          echo "## Pytest Output" >> $GITHUB_STEP_SUMMARY
-          echo '```' >> $GITHUB_STEP_SUMMARY
-          cat /tmp/pytest_output.txt >> $GITHUB_STEP_SUMMARY
-          echo '```' >> $GITHUB_STEP_SUMMARY
+        run: python -m pytest tests/ -v --tb=long
 
       - name: Check type hints
         run: |
