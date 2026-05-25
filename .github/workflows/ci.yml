@@ -27,6 +27,14 @@ jobs:
           pip install -e ".[dev]"
           pip install radon
 
+      - name: Verify imports
+        run: |
+          python -c "import agent_bench; print('agent_bench OK')"
+          python -c "import agent_bench.scorer; print('scorer OK')"
+          python -c "import agent_bench.reporter; print('reporter OK')"
+          python -c "import agent_bench.web_reporter; print('web_reporter OK')"
+          python -c "import agent_bench.collector; print('collector OK')"
+
       - name: Lint with ruff
         run: |
           pip install ruff
@@ -34,8 +42,7 @@ jobs:
         continue-on-error: true
 
       - name: Run tests
-        run: |
-          python -m pytest tests/ -v --tb=short
+        run: python -m pytest tests/ -v --tb=long
 
       - name: Check type hints
         run: |
