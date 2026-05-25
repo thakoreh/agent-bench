@@ -25,13 +25,11 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
+          pip install radon ruff
           pip install -e ".[dev]"
-          pip install radon
 
       - name: Lint with ruff
-        run: |
-          pip install ruff
-          ruff check agent_bench/ tests/ --ignore=E501
+        run: ruff check agent_bench/ tests/ --ignore=E501
         continue-on-error: true
 
       - name: Run tests
