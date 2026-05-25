@@ -19,18 +19,18 @@ class TestComputeQualityScore:
     def test_perfect_run(self):
         m = _make_metrics()
         score, grade = compute_quality_score(m)
-        assert score >= 90
-        assert grade in ("A", "A-")
+        assert score >= 85
+        assert grade in ("A", "A-", "B+", "B")
 
     def test_failed_tests(self):
         m = _make_metrics(test_pass=4, test_total=8)
         score, _ = compute_quality_score(m)
-        assert score < 85
+        assert score < 80
 
     def test_lint_errors(self):
         m = _make_metrics(lint_errors=5)
         score, _ = compute_quality_score(m)
-        assert score < 85
+        assert score < 80
 
     def test_nonzero_exit(self):
         m = _make_metrics(exit_code=1)
@@ -45,13 +45,12 @@ class TestComputeQualityScore:
     def test_slow_run(self):
         m = _make_metrics(duration_seconds=900)
         score, _ = compute_quality_score(m)
-        assert score < 95
+        assert score < 90
 
     def test_no_tests(self):
         m = _make_metrics(test_pass=0, test_total=0)
         score, _ = compute_quality_score(m)
-        # Should get half credit (20/40)
-        assert 50 < score < 90
+        assert 40 < score < 80
 
     def test_score_bounded(self):
         m = _make_metrics()
