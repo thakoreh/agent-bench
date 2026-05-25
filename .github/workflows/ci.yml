@@ -25,8 +25,7 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install radon ruff
-          pip install -e ".[dev]"
+          pip install -e ".[dev]" radon ruff mypy
 
       - name: Lint with ruff
         run: ruff check agent_bench/ tests/ --ignore=E501
@@ -36,7 +35,5 @@ jobs:
         run: python -m pytest tests/ -v --tb=short
 
       - name: Check type hints
-        run: |
-          pip install mypy
-          python -m mypy agent_bench/ --ignore-missing-imports --no-error-summary
+        run: python -m mypy agent_bench/ --ignore-missing-imports --no-error-summary
         continue-on-error: true
