@@ -9,14 +9,18 @@ on:
 jobs:
   test:
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.10", "3.11", "3.12"]
+
     steps:
       - uses: actions/checkout@v4
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
 
-      - uses: actions/setup-python@v5
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
         with:
-          python-version: "3.10"
+          python-version: ${{ matrix.python-version }}
 
       - name: Install dependencies
         run: |
@@ -24,20 +28,14 @@ jobs:
           pip install -e ".[dev]"
           pip install radon
 
-      - name: Run tests and capture output
+      - name: Lint with ruff
         run: |
-          python -m pytest tests/ -v --tb=long > ci_test_output.txt 2>&1 || true
+          pip install ruff
+          ruff check agent_bench/ tests/ --ignore=E501
+        continue-on-error: true
 
-      - name: Push test output
-        run: |
-          git config user.name "ci-bot"
-          git config user.email "ci@bot.com"
-          git add ci_test_output.txt
-          git commit -m "ci: test output" || true
-          git push origin master || true
-
-      - name: Run tests (real)
-        run: python -m pytest tests/ -v --tb=long
+      - name: Run tests
+        run: python -m pytest tests/ -v --tb=short
 
       - name: Check type hints
         run: |

@@ -142,7 +142,7 @@ class TestTypeHintCoverage:
         code = '''def foo(a: int, b: str):
     pass
 '''
-        # params annotated: 2/2=100, returns: 0/1=0
+        # params annotated: 2/2=100%, returns: 0/1=0%
         # weight_params=0.6, weight_returns=0.4
         result = compute_type_hint_coverage(code)
         assert result == 60.0
@@ -228,10 +228,13 @@ def multiply(x: float, y: float) -> float:
         assert grade in ("A", "A-", "B+", "B", "B-", "C+", "C", "C-", "D", "F")
 
     def test_empty_stdout_gives_moderate_score(self):
-        """Empty code should get neutral scores for new factors."""
+        """Empty code should get moderate scores for new factors."""
         m = self._make_metrics(test_pass=5, test_total=10, lines_added=10, lines_removed=5)
         score, grade = compute_quality_score(m)
-        assert 30 <= score <= 70
+        # v0.6.0: 11 factors including comment_density (5) and cleanliness (4)
+        # Empty stdout gets neutral defaults: complexity 3, docstrings 3.5, types 3.5,
+        # comment density 0.15 → 5pts (0.1-0.3 range), cleanliness 4 = ~77.5
+        assert 30 <= score <= 80
 
     def test_breakdown_factors_sum_to_100(self):
         """All breakdown factor max points should sum to 100."""
