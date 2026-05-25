@@ -1,5 +1,25 @@
 # Changelog
 
+## 0.5.0 (2026-05-25)
+
+### New Features
+- **Docstring coverage scoring**: `compute_docstring_coverage()` — AST-based docstring detection on modules, classes, and functions (9% weight)
+- **Type hint coverage scoring**: `compute_type_hint_coverage()` — parameter and return annotation analysis (9% weight)
+- **GitHub Actions CI workflow**: `.github/workflows/ci.yml` — multi-Python test matrix (3.10, 3.11, 3.12), ruff lint, mypy check
+- **Updated scoring formula**: Rebalanced from 7 factors to 9 factors (100 points total)
+
+### Improvements
+- **Scoring breakdown now shows 9 factors** (was 7): includes docstring_coverage and type_hint_coverage
+- **Type hints throughout** reporter.py: all variables annotated
+- **Reporter breakdown** recalculated to match new scorer weights (25/12/11/11/8/8/7/9/9)
+
+### Tests
+- 25 new tests for v0.5.0 features
+- Docstring coverage: empty, whitespace, invalid syntax, fully/partially/undocumented, class methods, async functions
+- Type hint coverage: empty, fully typed, no hints, return-only, params-only, self-skip, async, partial
+- Updated scoring: max score with docs/types, basic scoring, breakdown factor sum
+- Letter grade boundary testing
+
 ## 0.4.1 (2026-04-11)
 
 ### Bug Fixes
@@ -49,12 +69,7 @@
 - **py.typed marker**: PEP 561 compliance for type hint consumers
 
 ### Improvements
-- Comprehensive edge-case test coverage:
-  - Scorer: zero duration, all pass/fail, high complexity, negative exit codes
-  - Collector: empty output, partial token matches, mixed formats
-  - Reporter: empty results, single agent, many agents, markdown escaping, baseline comparison
-  - Storage: corrupt DB recovery, concurrent writes, large result sets
-  - CLI: report command, HTML output, version check
+- Comprehensive edge-case test coverage
 - Version bumped from 0.1.0 to 0.2.0
 
 ## 0.1.0 (2026-04-05)
