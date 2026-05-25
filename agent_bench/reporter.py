@@ -308,17 +308,19 @@ def format_csv(run_data: dict[str, Any]) -> str:
     return output.getvalue()
 
 
-# Scoring breakdown constants — must match scorer.py weights
+# Scoring breakdown constants — updated for v0.6.0 (11 factors)
 BREAKDOWN_FACTORS: list[tuple[str, int]] = [
     ("test_pass_rate", 25),
     ("lint_clean", 12),
-    ("diff_sensibility", 11),
-    ("task_completion", 11),
-    ("speed_bonus", 8),
-    ("import_hygiene", 8),
-    ("complexity", 7),
-    ("docstring_coverage", 9),
-    ("type_hint_coverage", 9),
+    ("diff_sensibility", 10),
+    ("task_completion", 10),
+    ("speed_bonus", 7),
+    ("import_hygiene", 7),
+    ("complexity", 6),
+    ("docstring_coverage", 7),
+    ("type_hint_coverage", 7),
+    ("comment_density", 5),
+    ("code_cleanliness", 4),
 ]
 
 
@@ -328,8 +330,10 @@ def _compute_breakdown(r: dict[str, Any]) -> dict[str, float]:
         _count_import_issues,
         _count_unused_imports,
         compute_complexity_score,
+        compute_comment_density,
         compute_docstring_coverage,
         compute_type_hint_coverage,
+        _code_cleanliness_penalty,
     )
 
     breakdown: dict[str, float] = {}
@@ -352,61 +356,74 @@ def _compute_breakdown(r: dict[str, Any]) -> dict[str, float]:
     else:
         breakdown["lint_clean"] = max(0, 12 - lint_errors * 2)
 
-    # diff_sensibility: 11 pts
+    # diff_sensibility: 10 pts
     total_changes: int = r.get("lines_added", 0) + r.get("lines_removed", 0)
     if total_changes == 0:
         breakdown["diff_sensibility"] = 0
     elif total_changes <= 5:
-        breakdown["diff_sensibility"] = 6
+        breakdown["diff_sensibility"] = 5
     elif total_changes <= 50:
-        breakdown["diff_sensibility"] = 11
+        breakdown["diff_sensibility"] = 10
     elif total_changes <= 200:
-        breakdown["diff_sensibility"] = 8
+        breakdown["diff_sensibility"] = 7
     else:
         breakdown["diff_sensibility"] = 3
 
-    # task_completion: 11 pts
-    breakdown["task_completion"] = 11 if r.get("exit_code") == 0 else 2
+    # task_completion: 10 pts
+    breakdown["task_completion"] = 10 if r.get("exit_code") == 0 else 2
 
-    # speed_bonus: 8 pts
+    # speed_bonus: 7 pts
     duration: float = r.get("duration_seconds", 0)
     if duration <= 30:
-        breakdown["speed_bonus"] = 8
+        breakdown["speed_bonus"] = 7
     elif duration <= 120:
-        breakdown["speed_bonus"] = 6
+        breakdown["speed_bonus"] = 5
     elif duration <= 300:
-        breakdown["speed_bonus"] = 4
+        breakdown["speed_bonus"] = 3
     elif duration <= 600:
-        breakdown["speed_bonus"] = 2
+        breakdown["speed_bonus"] = 1
     else:
         breakdown["speed_bonus"] = 0
 
-    # import_hygiene: 8 pts
+    # import_hygiene: 7 pts
     stdout: str = r.get("stdout", "")
     stderr: str = r.get("stderr", "")
     import_issues: int = _count_import_issues(stdout, stderr)
     unused: int = _count_unused_imports(stdout)
     total_imp: int = import_issues + unused
     if total_imp == 0:
-        breakdown["import_hygiene"] = 8
+        breakdown["import_hygiene"] = 7
     elif total_imp <= 2:
-        breakdown["import_hygiene"] = 5
+        breakdown["import_hygiene"] = 4
     elif total_imp <= 5:
         breakdown["import_hygiene"] = 2
     else:
         breakdown["import_hygiene"] = 0
 
-    # complexity: 7 pts
+    # complexity: 6 pts
     complexity: float = compute_complexity_score(stdout)
-    breakdown["complexity"] = complexity * 0.07
+    breakdown["complexity"] = complexity * 0.06
 
-    # docstring_coverage: 9 pts
+    # docstring_coverage: 7 pts
     docstring_cov: float = compute_docstring_coverage(stdout)
-    breakdown["docstring_coverage"] = docstring_cov * 0.09
+    breakdown["docstring_coverage"] = docstring_cov * 0.07
 
-    # type_hint_coverage: 9 pts
+    # type_hint_coverage: 7 pts
     type_hint_cov: float = compute_type_hint_coverage(stdout)
-    breakdown["type_hint_coverage"] = type_hint_cov * 0.09
+    breakdown["type_hint_coverage"] = type_hint_cov * 0.07
+
+    # comment_density: 5 pts
+    density: float = compute_comment_density(stdout)
+    if 0.1 <= density <= 0.3:
+        breakdown["comment_density"] = 5
+    elif density < 0.1:
+        breakdown["comment_density"] = density * 30
+    else:
+        breakdown["comment_density"] = max(0, 5 - (density - 0.3) * 15)
+
+    # code_cleanliness: 4 pts
+    penalty: float = _code_cleanliness_penalty(stdout, stderr)
+    breakdown["code_cleanliness"] = 4 - penalty
 
     return breakdown
 

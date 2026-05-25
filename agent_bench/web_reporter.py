@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import html
+import math
 from typing import Any
 
 
@@ -22,6 +23,112 @@ def _bar_svg(value: float, max_val: float, width: int = 200, height: int = 24, c
     )
 
 
+def _radar_chart_svg(
+    values: list[float],
+    labels: list[str],
+    size: int = 220,
+    color: str = "#4CAF50",
+    fill_opacity: float = 0.3,
+) -> str:
+    """Generate an SVG radar/spider chart for scoring breakdown."""
+    n = len(values)
+    if n < 3:
+        return _fallback_bar_svg(values, labels, color)
+
+    cx, cy = size / 2, size / 2
+    radius = size / 2 - 35
+    grid_rings = 4
+
+    # Data polygon points
+    points: list[str] = []
+    for i in range(n):
+        angle = (2 * math.pi * i / n) - math.pi / 2
+        r = (values[i] / 100.0) * radius
+        x = cx + r * math.cos(angle)
+        y = cy + r * math.sin(angle)
+        points.append(f"{x:.1f},{y:.1f}")
+
+    # Grid rings
+    grid_paths = ""
+    for ring in range(1, grid_rings + 1):
+        ring_r = (ring / grid_rings) * radius
+        ring_points: list[str] = []
+        for i in range(n):
+            angle = (2 * math.pi * i / n) - math.pi / 2
+            x = cx + ring_r * math.cos(angle)
+            y = cy + ring_r * math.sin(angle)
+            ring_points.append(f"{x:.1f},{y:.1f}")
+        grid_paths += f'<polygon points="{" ".join(ring_points)}" fill="none" stroke="#ddd" stroke-width="0.5"/>'
+
+    # Spokes
+    spokes = ""
+    label_elements = ""
+    for i in range(n):
+        angle = (2 * math.pi * i / n) - math.pi / 2
+        x_end = cx + radius * math.cos(angle)
+        y_end = cy + radius * math.sin(angle)
+        spokes += f'<line x1="{cx}" y1="{cy}" x2="{x_end}" y2="{y_end}" stroke="#ddd" stroke-width="0.5"/>'
+
+        label_r = radius + 20
+        lx = cx + label_r * math.cos(angle)
+        ly = cy + label_r * math.sin(angle)
+        anchor = "middle"
+        if math.cos(angle) > 0.3:
+            anchor = "start"
+        elif math.cos(angle) < -0.3:
+            anchor = "end"
+        escaped_label = html.escape(labels[i])
+        label_elements += (
+            f'<text x="{lx}" y="{ly}" font-size="9" font-family="sans-serif" '
+            f'text-anchor="{anchor}" dominant-baseline="middle">{escaped_label}</text>'
+        )
+
+    polygon = (
+        f'<polygon points="{" ".join(points)}" fill="{color}" '
+        f'fill-opacity="{fill_opacity}" stroke="{color}" stroke-width="1.5"/>'
+    )
+
+    return (
+        f'<svg width="{size}" height="{size}" viewBox="0 0 {size} {size}" xmlns="http://www.w3.org/2000/svg">'
+        f'{grid_paths}{spokes}{polygon}{label_elements}'
+        f'</svg>'
+    )
+
+
+def _fallback_bar_svg(
+    values: list[float],
+    labels: list[str],
+    color: str = "#4CAF50",
+) -> str:
+    """Fallback horizontal bar chart for fewer than 3 dimensions."""
+    if not values:
+        return ""
+
+    bar_height = 18
+    gap = 6
+    label_width = 100
+    bar_width = 120
+    total_height = len(values) * (bar_height + gap) + 10
+
+    elements = ""
+    for i, (val, label) in enumerate(zip(values, labels)):
+        y = i * (bar_height + gap) + 5
+        w = (val / 100.0) * bar_width
+        escaped = html.escape(label)
+        elements += (
+            f'<text x="0" y="{y + 13}" font-size="11" font-family="sans-serif">{escaped}</text>'
+            f'<rect x="{label_width}" y="{y}" width="{bar_width}" height="{bar_height}" fill="#e0e0e0" rx="3"/>'
+            f'<rect x="{label_width}" y="{y}" width="{w:.0f}" height="{bar_height}" fill="{color}" rx="3"/>'
+            f'<text x="{label_width + bar_width + 5}" y="{y + 13}" font-size="10" font-family="monospace">{val:.0f}</text>'
+        )
+
+    total_width = label_width + bar_width + 40
+    return (
+        f'<svg width="{total_width}" height="{total_height}" xmlns="http://www.w3.org/2000/svg">'
+        f'{elements}</svg>'
+    )
+
+
 def _format_duration(seconds: float) -> str:
     if seconds < 60:
         return f"{seconds:.0f}s"
@@ -35,6 +142,125 @@ def _format_tokens(count: int) -> str:
     if count >= 1_000:
         return f"{count / 1_000:.1f}K"
     return str(count)
+
+
+# Scoring breakdown factor labels for radar chart
+RADAR_LABELS = [
+    "Tests", "Lint", "Diff", "Completion", "Speed",
+    "Imports", "Complexity", "Docstrings", "Types", "Comments", "Clean",
+]
+
+RADAR_KEYS = [
+    "test_pass_rate", "lint_clean", "diff_sensibility", "task_completion",
+    "speed_bonus", "import_hygiene", "complexity", "docstring_coverage",
+    "type_hint_coverage", "comment_density", "code_cleanliness",
+]
+
+
+def _compute_radar_values(r: dict[str, Any]) -> list[float]:
+    """Compute scoring breakdown as 0-100 values for radar chart."""
+    import re as _re
+
+    values: list[float] = []
+
+    # Tests
+    test_total = r.get("test_total", 0)
+    test_pass = r.get("test_pass", 0)
+    values.append((test_pass / test_total) * 100 if test_total > 0 else 50)
+
+    # Lint
+    lint_errors = r.get("lint_errors", 0)
+    lint_warnings = r.get("lint_warnings", 0)
+    if lint_errors == 0 and lint_warnings == 0:
+        values.append(100)
+    elif lint_errors == 0:
+        values.append(50)
+    else:
+        values.append(max(0, 100 - lint_errors * 20))
+
+    # Diff
+    total_changes = r.get("lines_added", 0) + r.get("lines_removed", 0)
+    if total_changes == 0:
+        values.append(0)
+    elif total_changes <= 50:
+        values.append(100)
+    elif total_changes <= 200:
+        values.append(60)
+    else:
+        values.append(30)
+
+    # Completion
+    values.append(100 if r.get("exit_code") == 0 else 15)
+
+    # Speed
+    duration = r.get("duration_seconds", 0)
+    if duration <= 30:
+        values.append(100)
+    elif duration <= 120:
+        values.append(75)
+    elif duration <= 300:
+        values.append(50)
+    elif duration <= 600:
+        values.append(25)
+    else:
+        values.append(0)
+
+    # Imports
+    stdout = r.get("stdout", "")
+    stderr = r.get("stderr", "")
+    imp_issues = len(_re.findall(r"ImportError|ModuleNotFoundError", f"{stdout}\n{stderr}"))
+    imp_issues += len(_re.findall(r"from \S+ import \*", stdout))
+    imp_issues += len(_re.findall(r"F401|unused import", stdout))
+    if imp_issues == 0:
+        values.append(100)
+    elif imp_issues <= 2:
+        values.append(60)
+    elif imp_issues <= 5:
+        values.append(30)
+    else:
+        values.append(0)
+
+    # Complexity (approximate - use simple heuristic)
+    values.append(70)  # neutral default without radon
+
+    # Docstrings (approximate)
+    doc_match = len(_re.findall(r'"""', stdout))
+    if doc_match >= 2:
+        values.append(80)
+    elif doc_match > 0:
+        values.append(50)
+    else:
+        values.append(20)
+
+    # Type hints (approximate)
+    type_match = len(_re.findall(r"def \w+\([^)]*:\s*\w+", stdout))
+    if type_match > 0:
+        values.append(75)
+    else:
+        values.append(30)
+
+    # Comments
+    comment_lines = len(_re.findall(r"^\s*#", stdout, _re.MULTILINE))
+    code_lines = max(len(stdout.splitlines()), 1)
+    density = comment_lines / code_lines
+    if 0.1 <= density <= 0.3:
+        values.append(100)
+    elif density < 0.1:
+        values.append(density * 300)
+    else:
+        values.append(max(0, 100 - (density - 0.3) * 200))
+
+    # Cleanliness
+    combined = f"{stdout}\n{stderr}"
+    crashes = len(_re.findall(r"Traceback|SyntaxError|RuntimeError|segfault|core dumped", combined, _re.I))
+    if crashes == 0:
+        values.append(100)
+    elif crashes <= 2:
+        values.append(40)
+    else:
+        values.append(0)
+
+    return values
 
 
 def generate_html(run_data: dict[str, Any], comparison_data: dict[str, Any] | None = None) -> str:
@@ -103,6 +329,29 @@ def generate_html(run_data: dict[str, Any], comparison_data: dict[str, Any] | No
         </div>
     </div>"""
 
+    # Radar charts section
+    radar_section = ""
+    colors = ["#4CAF50", "#2196F3", "#FF9800", "#9C27B0", "#F44336"]
+    for i, r in enumerate(sorted_results[:5]):
+        name = html.escape(r.get("agent_name", "?"))
+        score = r.get("quality_score", 0)
+        values = _compute_radar_values(r)
+        color = colors[i % len(colors)]
+        chart = _radar_chart_svg(values, RADAR_LABELS, size=240, color=color)
+        radar_section += f"""
+        <div class="radar-card">
+            <h3>{name} — {score:.0f}/100</h3>
+            {chart}
+        </div>"""
+
+    radar_html = f"""
+    <div class="radar-section">
+        <h2>Scoring Breakdown</h2>
+        <div class="radar-grid">
+            {radar_section}
+        </div>
+    </div>"""
+
     # Comparison section
     comparison_html = ""
     if comparison_data:
@@ -125,6 +374,7 @@ def generate_html(run_data: dict[str, Any], comparison_data: dict[str, Any] | No
             margin: 0 auto;
         }}
         h1 {{ font-size: 1.8rem; margin-bottom: 0.5rem; }}
+        h2 {{ font-size: 1.4rem; margin-bottom: 1rem; color: #1a1a2e; }}
         .meta {{ color: #666; margin-bottom: 1.5rem; font-size: 0.9rem; }}
         .meta span {{ margin-right: 1.5rem; }}
         table {{
@@ -176,6 +426,28 @@ def generate_html(run_data: dict[str, Any], comparison_data: dict[str, Any] | No
             font-size: 1.1rem;
             font-weight: 600;
         }}
+        .radar-section {{
+            margin-top: 2rem;
+        }}
+        .radar-section h2 {{ margin-bottom: 1rem; }}
+        .radar-grid {{
+            display: flex;
+            flex-wrap: wrap;
+            gap: 1.5rem;
+        }}
+        .radar-card {{
+            background: white;
+            border-radius: 8px;
+            padding: 1.2rem;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+            text-align: center;
+            min-width: 260px;
+        }}
+        .radar-card h3 {{
+            font-size: 1rem;
+            margin-bottom: 0.8rem;
+            color: #333;
+        }}
         .comparison {{
             margin-top: 2rem;
         }}
@@ -219,9 +491,12 @@ def generate_html(run_data: dict[str, Any], comparison_data: dict[str, Any] | No
     </table>
 
     {winner_html}
+
+    {radar_html}
+
     {comparison_html}
 
-    <footer>Generated by agent-bench v0.2.0</footer>
+    <footer>Generated by agent-bench v0.6.0</footer>
 </body>
 </html>"""
 

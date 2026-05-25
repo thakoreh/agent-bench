@@ -1,5 +1,27 @@
 # Changelog
 
+## 0.6.0 (2026-05-25)
+
+### New Features
+- **Comment density scoring**: `compute_comment_density()` — measures comment-to-code ratio, sweet spot 10-30% (5% weight)
+- **Code cleanliness scoring**: `_code_cleanliness_penalty()` — detects crashes, tracebacks, segfaults in output (4% weight)
+- **Radar/spider charts in HTML reports**: SVG-based radar charts showing scoring breakdown across all 11 factors for each agent
+- **Updated scoring formula**: Rebalanced from 9 factors to 11 factors (100 points total)
+
+### Improvements
+- **Scoring breakdown now shows 11 factors** (was 9): includes comment_density and code_cleanliness
+- **Web reporter** now includes interactive radar charts with per-agent visual breakdown
+- **Reporter breakdown** recalculated to match new scorer weights (25/12/10/10/7/7/6/7/7/5/4)
+- **Version sync**: pyproject.toml, __init__.py, and footer all now show 0.6.0
+
+### Tests
+- 18 new tests for v0.6.0 features
+- Comment density: empty, whitespace, no comments, all comments, mixed, docstrings
+- Code cleanliness: clean output, traceback, syntax error, severe crashes
+- Updated scoring weight validation
+- Radar chart SVG generation: basic, all zeros, all 100s, < 3 dims fallback, custom color/size, XSS safety
+- HTML report with radar: section present, escaping, version in footer, comparison section
+
 ## 0.5.0 (2026-05-25)
 
 ### New Features
@@ -15,10 +37,6 @@
 
 ### Tests
 - 25 new tests for v0.5.0 features
-- Docstring coverage: empty, whitespace, invalid syntax, fully/partially/undocumented, class methods, async functions
-- Type hint coverage: empty, fully typed, no hints, return-only, params-only, self-skip, async, partial
-- Updated scoring: max score with docs/types, basic scoring, breakdown factor sum
-- Letter grade boundary testing
 
 ## 0.4.1 (2026-04-11)
 
@@ -28,57 +46,3 @@
 ### Tests
 - 49 new edge case tests (229 total)
 - Full coverage: collector, scorer, pricing, config, storage, reporter
-- Letter grade boundary testing
-- Import issue detection edge cases
-
-## 0.4.0 (2026-04-09)
-
-### New Features
-- **CSV export**: `agent-bench results --csv -o results.csv` exports all metrics
-- **Leaderboard command**: `agent-bench leaderboard` aggregates scores across all runs (avg, best, wins, total runs)
-- **Scoring breakdown**: `agent-bench results --breakdown` shows per-factor scoring (test pass rate, lint, diff, speed, etc.)
-- **History JSON**: `agent-bench history --json` for programmatic access
-- **Cost efficiency metric**: `quality_score / max(cost, 0.01)` column in results table
-- **Sort by cost efficiency**: `agent-bench results --sort-by cost-efficiency`
-
-### Tests
-- 19 new tests (166 total)
-- Edge case coverage: empty leaderboard, special characters in CSV, zero-metric breakdown, empty history JSON
-
-## 0.3.0 (2026-04-08)
-
-### New Features
-- **`--parallel` flag on `run`**: run agents simultaneously with `agent-bench run --parallel`
-- **`--model` flag on `run`**: override model per agent with `agent-bench run --model gpt-4o,claude-sonnet-4`
-- **`trend` command**: show quality score trends across runs with `--json` and `--agent` filters
-- **`delete` command**: clean up old runs with `agent-bench delete <run-id> --force`
-- **`Storage.delete_run`**: removes a run and all its results
-- **`Storage.get_agent_history`**: query all results for a specific agent
-- **Model field in storage**: agent_results now stores the model name
-
-### Improvements
-- 18 new tests (147 total)
-- Better CLI discoverability (help text for new flags)
-
-## 0.2.0 (2026-04-07)
-
-### New Features
-- **Web Reporter**: Self-contained HTML reports with inline SVG bar charts for quality scores, cost, and duration comparison (`agent-bench report --html -o report.html`)
-- **HTML flag on results**: `agent-bench results --html` for quick HTML output
-- **GitHub Actions integration**: `.github/workflows/benchmark.yml` for CI benchmarking on PRs
-- **py.typed marker**: PEP 561 compliance for type hint consumers
-
-### Improvements
-- Comprehensive edge-case test coverage
-- Version bumped from 0.1.0 to 0.2.0
-
-## 0.1.0 (2026-04-05)
-
-### Initial Release
-- Multi-agent detection and execution
-- Quality scoring (complexity, import hygiene, test pass rate, lint, speed)
-- SQLite storage for run history
-- Markdown and Rich table output
-- `--compare` and `--baseline` flags for side-by-side comparison
-- Parallel agent execution with ThreadPoolExecutor
-- Model-level comparison support
