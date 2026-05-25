@@ -42,9 +42,9 @@ def _test_status(passed: int, total: int) -> str:
 def format_table(run_data: dict[str, Any], sort_by: str = "quality") -> str:
     """Format run data as a Rich table string."""
     console = Console(width=110)
-    task = run_data.get("task", "Unknown")
-    timestamp = run_data.get("timestamp", "")
-    results = run_data.get("results", [])
+    task: str = run_data.get("task", "Unknown")
+    timestamp: str = run_data.get("timestamp", "")
+    results: list[dict[str, Any]] = run_data.get("results", [])
 
     if not results:
         return "No results to display."
@@ -54,7 +54,7 @@ def format_table(run_data: dict[str, Any], sort_by: str = "quality") -> str:
         r["cost_efficiency"] = r.get("quality_score", 0) / max(r.get("cost", 0), 0.01)
 
     if sort_by == "cost-efficiency":
-        sorted_results = sorted(results, key=lambda r: r.get("cost_efficiency", 0), reverse=True)
+        sorted_results: list[dict[str, Any]] = sorted(results, key=lambda r: r.get("cost_efficiency", 0), reverse=True)
     else:
         sorted_results = sorted(results, key=lambda r: r.get("quality_score", 0), reverse=True)
 
@@ -68,17 +68,17 @@ def format_table(run_data: dict[str, Any], sort_by: str = "quality") -> str:
     table.add_column("Cost Eff.", justify="right")
 
     for r in sorted_results:
-        name = r.get("agent_name", "?")
-        duration = _format_duration(r.get("duration_seconds", 0))
-        cost = f"${r.get('cost', 0):.2f}"
-        tokens_in = _format_tokens(r.get("tokens_in", 0))
-        tokens_out = _format_tokens(r.get("tokens_out", 0))
-        token_str = f"{tokens_in} → {tokens_out}" if tokens_in != "0" else "—"
-        tests = _test_status(r.get("test_pass", 0), r.get("test_total", 0))
-        score = r.get("quality_score", 0)
-        grade = r.get("quality_grade", "?")
-        quality = f"{grade} ({score:.0f}/100)"
-        ce = r.get("cost_efficiency", 0)
+        name: str = r.get("agent_name", "?")
+        duration: str = _format_duration(r.get("duration_seconds", 0))
+        cost: str = f"${r.get('cost', 0):.2f}"
+        tokens_in: str = _format_tokens(r.get("tokens_in", 0))
+        tokens_out: str = _format_tokens(r.get("tokens_out", 0))
+        token_str: str = f"{tokens_in} → {tokens_out}" if tokens_in != "0" else "—"
+        tests: str = _test_status(r.get("test_pass", 0), r.get("test_total", 0))
+        score: float = r.get("quality_score", 0)
+        grade: str = r.get("quality_grade", "?")
+        quality: str = f"{grade} ({score:.0f}/100)"
+        ce: float = r.get("cost_efficiency", 0)
 
         table.add_row(name, duration, cost, token_str, tests, quality, f"{ce:.1f}")
 
@@ -89,14 +89,14 @@ def format_table(run_data: dict[str, Any], sort_by: str = "quality") -> str:
         console.print(table)
 
     # Winner annotations
-    output = capture.get()
+    output: str = capture.get()
 
     if sorted_results:
-        best = sorted_results[0]
-        fastest = min(results, key=lambda r: r.get("duration_seconds", float("inf")))
-        cheapest = min(results, key=lambda r: r.get("cost", float("inf")))
+        best: dict[str, Any] = sorted_results[0]
+        fastest: dict[str, Any] = min(results, key=lambda r: r.get("duration_seconds", float("inf")))
+        cheapest: dict[str, Any] = min(results, key=lambda r: r.get("cost", float("inf")))
 
-        lines = [
+        lines: list[str] = [
             f"\n  Winner: {best['agent_name']} ({best.get('quality_grade', '?')} — best quality)",
             f"  Fastest: {fastest['agent_name']} ({_format_duration(fastest.get('duration_seconds', 0))})",
             f"  Cheapest: {cheapest['agent_name']} (${cheapest.get('cost', 0):.2f})",
@@ -123,7 +123,7 @@ def format_history(runs: list[dict[str, Any]]) -> str:
     table.add_column("Task", max_width=40, no_wrap=True)
 
     for run in runs:
-        task = run.get("task", "")
+        task: str = run.get("task", "")
         if len(task) > 40:
             task = task[:37] + "..."
         table.add_row(run.get("run_id", "?"), run.get("timestamp", ""), task)
@@ -136,17 +136,17 @@ def format_history(runs: list[dict[str, Any]]) -> str:
 
 def format_markdown(run_data: dict[str, Any]) -> str:
     """Format run data as markdown for sharing."""
-    task = run_data.get("task", "Unknown")
-    timestamp = run_data.get("timestamp", "")
-    results = run_data.get("results", [])
-    run_id = run_data.get("run_id", "?")
+    task: str = run_data.get("task", "Unknown")
+    timestamp: str = run_data.get("timestamp", "")
+    results: list[dict[str, Any]] = run_data.get("results", [])
+    run_id: str = run_data.get("run_id", "?")
 
     if not results:
         return "No results to display."
 
-    sorted_results = sorted(results, key=lambda r: r.get("quality_score", 0), reverse=True)
+    sorted_results: list[dict[str, Any]] = sorted(results, key=lambda r: r.get("quality_score", 0), reverse=True)
 
-    lines = [
+    lines: list[str] = [
         f"# Agent Benchmark Results",
         f"",
         f"**Task:** {task}",
@@ -158,24 +158,24 @@ def format_markdown(run_data: dict[str, Any]) -> str:
     ]
 
     for r in sorted_results:
-        name = r.get("agent_name", "?")
-        duration = _format_duration(r.get("duration_seconds", 0))
-        cost = f"${r.get('cost', 0):.2f}"
-        tokens_in = _format_tokens(r.get("tokens_in", 0))
-        tokens_out = _format_tokens(r.get("tokens_out", 0))
-        token_str = f"{tokens_in} → {tokens_out}" if tokens_in != "0" else "—"
-        tests = _test_status(r.get("test_pass", 0), r.get("test_total", 0))
-        score = r.get("quality_score", 0)
-        grade = r.get("quality_grade", "?")
-        quality = f"{grade} ({score:.0f}/100)"
+        name: str = r.get("agent_name", "?")
+        duration: str = _format_duration(r.get("duration_seconds", 0))
+        cost: str = f"${r.get('cost', 0):.2f}"
+        tokens_in: str = _format_tokens(r.get("tokens_in", 0))
+        tokens_out: str = _format_tokens(r.get("tokens_out", 0))
+        token_str: str = f"{tokens_in} → {tokens_out}" if tokens_in != "0" else "—"
+        tests: str = _test_status(r.get("test_pass", 0), r.get("test_total", 0))
+        score: float = r.get("quality_score", 0)
+        grade: str = r.get("quality_grade", "?")
+        quality: str = f"{grade} ({score:.0f}/100)"
 
         lines.append(f"| {name} | {duration} | {cost} | {token_str} | {tests} | {quality} |")
 
     # Summary
     if sorted_results:
-        best = sorted_results[0]
-        fastest = min(results, key=lambda r: r.get("duration_seconds", float("inf")))
-        cheapest = min(results, key=lambda r: r.get("cost", float("inf")))
+        best: dict[str, Any] = sorted_results[0]
+        fastest: dict[str, Any] = min(results, key=lambda r: r.get("duration_seconds", float("inf")))
+        cheapest: dict[str, Any] = min(results, key=lambda r: r.get("cost", float("inf")))
         lines.extend([
             f"",
             f"**Winner:** {best['agent_name']} ({best.get('quality_grade', '?')} — best quality)",
@@ -190,9 +190,9 @@ def format_baseline_table(current: dict[str, Any], baseline: dict[str, Any]) -> 
     """Format current vs baseline as a comparison table."""
     console = Console(width=120)
 
-    current_results = {r["agent_name"]: r for r in current.get("results", [])}
-    baseline_results = {r["agent_name"]: r for r in baseline.get("results", [])}
-    all_agents = sorted(set(current_results) | set(baseline_results))
+    current_results: dict[str, dict[str, Any]] = {r["agent_name"]: r for r in current.get("results", [])}
+    baseline_results: dict[str, dict[str, Any]] = {r["agent_name"]: r for r in baseline.get("results", [])}
+    all_agents: list[str] = sorted(set(current_results) | set(baseline_results))
 
     table = Table(title="Current vs Baseline", show_lines=True)
     table.add_column("Agent", style="bold")
@@ -204,14 +204,14 @@ def format_baseline_table(current: dict[str, Any], baseline: dict[str, Any]) -> 
     table.add_column("Time (now)", justify="right")
 
     for agent in all_agents:
-        cur = current_results.get(agent, {})
-        bas = baseline_results.get(agent, {})
+        cur: dict[str, Any] = current_results.get(agent, {})
+        bas: dict[str, Any] = baseline_results.get(agent, {})
 
-        cur_score = cur.get("quality_score", 0)
-        bas_score = bas.get("quality_score", 0)
-        delta = cur_score - bas_score
+        cur_score: float = cur.get("quality_score", 0)
+        bas_score: float = bas.get("quality_score", 0)
+        delta: float = cur_score - bas_score
 
-        delta_str = f"+{delta:.0f}" if delta > 0 else f"{delta:.0f}"
+        delta_str: str = f"+{delta:.0f}" if delta > 0 else f"{delta:.0f}"
         if delta > 0:
             delta_str = f"[green]{delta_str}[/green]"
         elif delta < 0:
@@ -239,11 +239,11 @@ def format_baseline_table(current: dict[str, Any], baseline: dict[str, Any]) -> 
 
 def format_baseline_markdown(current: dict[str, Any], baseline: dict[str, Any]) -> str:
     """Format current vs baseline as markdown."""
-    current_results = {r["agent_name"]: r for r in current.get("results", [])}
-    baseline_results = {r["agent_name"]: r for r in baseline.get("results", [])}
-    all_agents = sorted(set(current_results) | set(baseline_results))
+    current_results: dict[str, dict[str, Any]] = {r["agent_name"]: r for r in current.get("results", [])}
+    baseline_results: dict[str, dict[str, Any]] = {r["agent_name"]: r for r in baseline.get("results", [])}
+    all_agents: list[str] = sorted(set(current_results) | set(baseline_results))
 
-    lines = [
+    lines: list[str] = [
         f"# Benchmark Comparison",
         f"",
         f"**Current:** {current.get('run_id', '?')} ({current.get('timestamp', '')})",
@@ -254,12 +254,12 @@ def format_baseline_markdown(current: dict[str, Any], baseline: dict[str, Any]) 
     ]
 
     for agent in all_agents:
-        cur = current_results.get(agent, {})
-        bas = baseline_results.get(agent, {})
-        cur_score = cur.get("quality_score", 0)
-        bas_score = bas.get("quality_score", 0)
-        delta = cur_score - bas_score
-        delta_str = f"+{delta:.0f}" if delta > 0 else f"{delta:.0f}"
+        cur: dict[str, Any] = current_results.get(agent, {})
+        bas: dict[str, Any] = baseline_results.get(agent, {})
+        cur_score: float = cur.get("quality_score", 0)
+        bas_score: float = bas.get("quality_score", 0)
+        delta: float = cur_score - bas_score
+        delta_str: str = f"+{delta:.0f}" if delta > 0 else f"{delta:.0f}"
         lines.append(
             f"| {agent} | {cur.get('quality_grade', '?')} ({cur_score:.0f}) "
             f"| {bas.get('quality_grade', '?')} ({bas_score:.0f}) "
@@ -276,15 +276,15 @@ def format_compare(run_a: dict[str, Any], run_b: dict[str, Any]) -> str:
 
 def format_csv(run_data: dict[str, Any]) -> str:
     """Format run data as CSV."""
-    results = run_data.get("results", [])
-    run_id = run_data.get("run_id", "")
-    timestamp = run_data.get("timestamp", "")
-    task = run_data.get("task", "")
+    results: list[dict[str, Any]] = run_data.get("results", [])
+    run_id: str = run_data.get("run_id", "")
+    timestamp: str = run_data.get("timestamp", "")
+    task: str = run_data.get("task", "")
 
-    output = io.StringIO()
-    writer = csv.writer(output)
+    output: io.StringIO = io.StringIO()
+    writer: csv.Writer = csv.writer(output)
 
-    headers = [
+    headers: list[str] = [
         "run_id", "timestamp", "task", "agent_name", "model",
         "duration_seconds", "cost", "tokens_in", "tokens_out",
         "files_changed", "lines_added", "lines_removed",
@@ -308,89 +308,105 @@ def format_csv(run_data: dict[str, Any]) -> str:
     return output.getvalue()
 
 
-# Scoring breakdown constants
-BREAKDOWN_FACTORS = [
-    ("test_pass_rate", 30),
-    ("lint_clean", 14),
-    ("diff_sensibility", 13),
-    ("task_completion", 13),
-    ("speed_bonus", 10),
-    ("import_hygiene", 10),
-    ("complexity", 10),
+# Scoring breakdown constants — must match scorer.py weights
+BREAKDOWN_FACTORS: list[tuple[str, int]] = [
+    ("test_pass_rate", 25),
+    ("lint_clean", 12),
+    ("diff_sensibility", 11),
+    ("task_completion", 11),
+    ("speed_bonus", 8),
+    ("import_hygiene", 8),
+    ("complexity", 7),
+    ("docstring_coverage", 9),
+    ("type_hint_coverage", 9),
 ]
 
 
 def _compute_breakdown(r: dict[str, Any]) -> dict[str, float]:
     """Compute individual scoring factor points for a result."""
-    from .scorer import _count_import_issues, _count_unused_imports, compute_complexity_score
+    from .scorer import (
+        _count_import_issues,
+        _count_unused_imports,
+        compute_complexity_score,
+        compute_docstring_coverage,
+        compute_type_hint_coverage,
+    )
 
-    breakdown = {}
+    breakdown: dict[str, float] = {}
 
-    # test_pass_rate: 30 pts
-    test_total = r.get("test_total", 0)
-    test_pass = r.get("test_pass", 0)
+    # test_pass_rate: 25 pts
+    test_total: int = r.get("test_total", 0)
+    test_pass: int = r.get("test_pass", 0)
     if test_total > 0:
-        breakdown["test_pass_rate"] = (test_pass / test_total) * 30
+        breakdown["test_pass_rate"] = (test_pass / test_total) * 25
     else:
-        breakdown["test_pass_rate"] = 15
+        breakdown["test_pass_rate"] = 12.5
 
-    # lint_clean: 14 pts
-    lint_errors = r.get("lint_errors", 0)
-    lint_warnings = r.get("lint_warnings", 0)
+    # lint_clean: 12 pts
+    lint_errors: int = r.get("lint_errors", 0)
+    lint_warnings: int = r.get("lint_warnings", 0)
     if lint_errors == 0 and lint_warnings == 0:
-        breakdown["lint_clean"] = 14
+        breakdown["lint_clean"] = 12
     elif lint_errors == 0:
-        breakdown["lint_clean"] = 7
+        breakdown["lint_clean"] = 6
     else:
-        breakdown["lint_clean"] = max(0, 14 - lint_errors * 3)
+        breakdown["lint_clean"] = max(0, 12 - lint_errors * 2)
 
-    # diff_sensibility: 13 pts
-    total_changes = r.get("lines_added", 0) + r.get("lines_removed", 0)
+    # diff_sensibility: 11 pts
+    total_changes: int = r.get("lines_added", 0) + r.get("lines_removed", 0)
     if total_changes == 0:
         breakdown["diff_sensibility"] = 0
     elif total_changes <= 5:
-        breakdown["diff_sensibility"] = 7
+        breakdown["diff_sensibility"] = 6
     elif total_changes <= 50:
-        breakdown["diff_sensibility"] = 13
+        breakdown["diff_sensibility"] = 11
     elif total_changes <= 200:
-        breakdown["diff_sensibility"] = 9
+        breakdown["diff_sensibility"] = 8
     else:
-        breakdown["diff_sensibility"] = 4
+        breakdown["diff_sensibility"] = 3
 
-    # task_completion: 13 pts
-    breakdown["task_completion"] = 13 if r.get("exit_code") == 0 else 2
+    # task_completion: 11 pts
+    breakdown["task_completion"] = 11 if r.get("exit_code") == 0 else 2
 
-    # speed_bonus: 10 pts
-    duration = r.get("duration_seconds", 0)
+    # speed_bonus: 8 pts
+    duration: float = r.get("duration_seconds", 0)
     if duration <= 30:
-        breakdown["speed_bonus"] = 10
-    elif duration <= 120:
         breakdown["speed_bonus"] = 8
+    elif duration <= 120:
+        breakdown["speed_bonus"] = 6
     elif duration <= 300:
-        breakdown["speed_bonus"] = 5
+        breakdown["speed_bonus"] = 4
     elif duration <= 600:
-        breakdown["speed_bonus"] = 3
+        breakdown["speed_bonus"] = 2
     else:
         breakdown["speed_bonus"] = 0
 
-    # import_hygiene: 10 pts
-    stdout = r.get("stdout", "")
-    stderr = r.get("stderr", "")
-    import_issues = _count_import_issues(stdout, stderr)
-    unused = _count_unused_imports(stdout)
-    total_imp = import_issues + unused
+    # import_hygiene: 8 pts
+    stdout: str = r.get("stdout", "")
+    stderr: str = r.get("stderr", "")
+    import_issues: int = _count_import_issues(stdout, stderr)
+    unused: int = _count_unused_imports(stdout)
+    total_imp: int = import_issues + unused
     if total_imp == 0:
-        breakdown["import_hygiene"] = 10
+        breakdown["import_hygiene"] = 8
     elif total_imp <= 2:
-        breakdown["import_hygiene"] = 6
+        breakdown["import_hygiene"] = 5
     elif total_imp <= 5:
-        breakdown["import_hygiene"] = 3
+        breakdown["import_hygiene"] = 2
     else:
         breakdown["import_hygiene"] = 0
 
-    # complexity: 10 pts
-    complexity = compute_complexity_score(stdout)
-    breakdown["complexity"] = complexity * 0.10
+    # complexity: 7 pts
+    complexity: float = compute_complexity_score(stdout)
+    breakdown["complexity"] = complexity * 0.07
+
+    # docstring_coverage: 9 pts
+    docstring_cov: float = compute_docstring_coverage(stdout)
+    breakdown["docstring_coverage"] = docstring_cov * 0.09
+
+    # type_hint_coverage: 9 pts
+    type_hint_cov: float = compute_type_hint_coverage(stdout)
+    breakdown["type_hint_coverage"] = type_hint_cov * 0.09
 
     return breakdown
 
@@ -398,19 +414,19 @@ def _compute_breakdown(r: dict[str, Any]) -> dict[str, float]:
 def format_breakdown_table(run_data: dict[str, Any]) -> str:
     """Format scoring breakdown as a sub-table."""
     console = Console(width=100)
-    results = run_data.get("results", [])
+    results: list[dict[str, Any]] = run_data.get("results", [])
     if not results:
         return "No results to display."
 
-    sorted_results = sorted(results, key=lambda r: r.get("quality_score", 0), reverse=True)
+    sorted_results: list[dict[str, Any]] = sorted(results, key=lambda r: r.get("quality_score", 0), reverse=True)
 
-    output = format_table(run_data)
+    output: str = format_table(run_data)
     output += "\n\n"
 
     for r in sorted_results:
-        name = r.get("agent_name", "?")
-        score = r.get("quality_score", 0)
-        bd = _compute_breakdown(r)
+        name: str = r.get("agent_name", "?")
+        score: float = r.get("quality_score", 0)
+        bd: dict[str, float] = _compute_breakdown(r)
 
         table = Table(title=f"Scoring Breakdown: {name} ({score:.0f}/100)", show_lines=True)
         table.add_column("Factor", style="bold")
@@ -418,7 +434,7 @@ def format_breakdown_table(run_data: dict[str, Any]) -> str:
         table.add_column("Max", justify="right")
 
         for factor, max_pts in BREAKDOWN_FACTORS:
-            pts = bd.get(factor, 0)
+            pts: float = bd.get(factor, 0)
             table.add_row(factor.replace("_", " ").title(), f"{pts:.1f}", str(max_pts))
 
         with console.capture() as capture:
@@ -430,29 +446,29 @@ def format_breakdown_table(run_data: dict[str, Any]) -> str:
 
 def format_breakdown_markdown(run_data: dict[str, Any]) -> str:
     """Format scoring breakdown as markdown."""
-    results = run_data.get("results", [])
+    results: list[dict[str, Any]] = run_data.get("results", [])
     if not results:
         return "No results to display."
 
-    sorted_results = sorted(results, key=lambda r: r.get("quality_score", 0), reverse=True)
-    lines = [f"# Scoring Breakdown\n"]
+    sorted_results: list[dict[str, Any]] = sorted(results, key=lambda r: r.get("quality_score", 0), reverse=True)
+    lines: list[str] = [f"# Scoring Breakdown\n"]
 
     for r in sorted_results:
-        name = r.get("agent_name", "?")
-        score = r.get("quality_score", 0)
-        bd = _compute_breakdown(r)
+        name: str = r.get("agent_name", "?")
+        score: float = r.get("quality_score", 0)
+        bd: dict[str, float] = _compute_breakdown(r)
         lines.append(f"## {name} ({score:.0f}/100)\n")
         lines.append("| Factor | Points | Max |")
         lines.append("|--------|--------|-----|")
         for factor, max_pts in BREAKDOWN_FACTORS:
-            pts = bd.get(factor, 0)
+            pts: float = bd.get(factor, 0)
             lines.append(f"| {factor.replace('_', ' ').title()} | {pts:.1f} | {max_pts} |")
         lines.append("")
 
     return "\n".join(lines)
 
 
-def format_leaderboard_table(leaderboard: list[dict]) -> str:
+def format_leaderboard_table(leaderboard: list[dict[str, Any]]) -> str:
     """Format leaderboard as a Rich table."""
     console = Console(width=80)
     if not leaderboard:
@@ -481,11 +497,11 @@ def format_leaderboard_table(leaderboard: list[dict]) -> str:
     return capture.get()
 
 
-def format_leaderboard_markdown(leaderboard: list[dict]) -> str:
+def format_leaderboard_markdown(leaderboard: list[dict[str, Any]]) -> str:
     """Format leaderboard as markdown."""
     if not leaderboard:
         return "No benchmark runs found."
-    lines = ["# Leaderboard\n",
+    lines: list[str] = ["# Leaderboard\n",
              "| Rank | Agent | Avg Score | Best | Runs | Wins |",
              "|------|-------|-----------|------|------|------|"]
     for i, e in enumerate(leaderboard, 1):
@@ -493,6 +509,6 @@ def format_leaderboard_markdown(leaderboard: list[dict]) -> str:
     return "\n".join(lines)
 
 
-def format_leaderboard_json(leaderboard: list[dict]) -> str:
+def format_leaderboard_json(leaderboard: list[dict[str, Any]]) -> str:
     """Format leaderboard as JSON."""
     return json.dumps(leaderboard, indent=2)
