@@ -459,3 +459,121 @@ def compare_models(agent: str, models: str, task: str | None, workdir: str | Non
 
 if __name__ == "__main__":
     cli()
+
+
+@cli.command()
+@click.option("--reset", is_flag=True, help="Reset to default weights")
+def weights(reset: bool) -> None:
+    """Show or customize scoring weights.
+
+    Scoring weights determine how each factor contributes to the final quality score.
+    All weights should sum to ~1.0.
+
+    \b
+    Factors:
+      test_pass_rate    (default: 0.25) - Test pass/skip ratio
+      lint_clean        (default: 0.12) - No lint errors/warnings
+      diff_sensibility  (default: 0.10) - Reasonable change size
+      task_completion   (default: 0.10) - Exit code 0
+      speed_bonus       (default: 0.07) - Fast execution
+      import_hygiene    (default: 0.07) - Clean imports
+      complexity        (default: 0.06) - Low cyclomatic complexity
+      docstring_coverage(default: 0.07) - Function/class docstrings
+      type_hint_coverage(default: 0.07) - Type annotations
+      comment_density   (default: 0.05) - Reasonable comment ratio
+      code_cleanliness  (default: 0.04) - No crashes/errors in output
+
+    To customize, edit ~/.agent-bench.yaml:
+      scoring_weights:
+        test_pass_rate: 0.30
+        speed_bonus: 0.10
+    """
+    from .scorer import DEFAULT_WEIGHTS
+
+    if reset:
+        click.echo("Reset to default weights (edit ~/.agent-bench.yaml to customize):\n")
+    else:
+        click.echo("Current scoring weights (edit ~/.agent-bench.yaml to customize):\n")
+
+    total = sum(DEFAULT_WEIGHTS.values())
+    for name, weight in DEFAULT_WEIGHTS.items():
+        bar_len = int(weight * 50)
+        bar = "█" * bar_len + "░" * (50 - bar_len)
+        click.echo(f"  {name:22s} {weight:.2f}  [dim]{bar}[/dim]")
+
+    click.echo(f"\n  Total: {total:.2f}")
+
+
+@cli.command(name="diff")
+@click.argument("run_id_a")
+@click.argument("run_id_b")
+def diff_runs(run_id_a: str, run_id_b: str) -> None:
+    """Compare two runs side by side.
+
+    Shows score delta, cost delta, and time delta for each agent.
+
+    \b
+    Usage:
+      agent-bench diff 20260527-100000-abc123 20260527-120000-def456
+    """
+    from rich.console import Console as RichConsole
+    from rich.table import Table as RichTable
+    from rich import box as rich_box
+
+    storage = Storage()
+    run_a = storage.get_run(run_id_a)
+    run_b = storage.get_run(run_id_b)
+
+    if not run_a:
+        click.echo(f"Run not found: {run_id_a}")
+        storage.close()
+        return
+    if not run_b:
+        click.echo(f"Run not found: {run_id_b}")
+        storage.close()
+        return
+
+    results_a = {r["agent_name"]: r for r in run_a.get("results", [])}
+    results_b = {r["agent_name"]: r for r in run_b.get("results", [])}
+    all_agents = sorted(set(results_a) | set(results_b))
+
+    rc = RichConsole()
+    table = RichTable(
+        title=f"Diff: {run_id_a[:12]}... vs {run_id_b[:12]}...",
+        box=rich_box.ROUNDED,
+        title_style="bold cyan",
+    )
+    table.add_column("Agent", style="bold")
+    table.add_column("Score A", justify="right")
+    table.add_column("Score B", justify="right")
+    table.add_column("Δ Score", justify="right")
+    table.add_column("Cost A", justify="right")
+    table.add_column("Cost B", justify="right")
+    table.add_column("Δ Cost", justify="right")
+
+    for agent in all_agents:
+        a = results_a.get(agent, {})
+        b = results_b.get(agent, {})
+        score_a = a.get("quality_score", 0)
+        score_b = b.get("quality_score", 0)
+        delta_score = score_b - score_a
+        cost_a = a.get("cost", 0)
+        cost_b = b.get("cost", 0)
+        delta_cost = cost_b - cost_a
+
+        ds_color = "green" if delta_score > 0 else "red" if delta_score < 0 else "white"
+        dc_color = "green" if delta_cost < 0 else "red" if delta_cost > 0 else "white"
+
+        table.add_row(
+            agent,
+            f"{score_a:.0f}" if a else "-",
+            f"{score_b:.0f}" if b else "-",
+            f"[{ds_color}]{delta_score:+.0f}[/{ds_color}]",
+            f"${cost_a:.4f}" if a else "-",
+            f"${cost_b:.4f}" if b else "-",
+            f"[{dc_color}]{delta_cost:+.4f}[/{dc_color}]",
+        )
+
+    rc.print(table)
+    rc.print(f"\n[dim]A: {run_a.get('task', '?')[:60]}  |  B: {run_b.get('task', '?')[:60]}[/dim]")
+    storage.close()

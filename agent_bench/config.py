@@ -83,6 +83,15 @@ class Config:
     def run_lint(self) -> bool:
         return self.scoring.get("lint", True)
 
+    @property
+    def scoring_weights(self) -> dict[str, float]:
+        """Custom scoring weights from config."""
+        from .scorer import DEFAULT_WEIGHTS
+        custom = self.scoring.get("weights", {})
+        weights = dict(DEFAULT_WEIGHTS)
+        weights.update({k: float(v) for k, v in custom.items() if k in DEFAULT_WEIGHTS})
+        return weights
+
     def get_agent_config(self, name: str) -> dict[str, Any]:
         return self.agents.get(name, {})
 

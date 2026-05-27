@@ -327,3 +327,129 @@ def _letter_grade(score: float) -> str:
     if score >= 60:
         return "D"
     return "F"
+
+
+# Default scoring weights (must sum to ~1.0)
+DEFAULT_WEIGHTS: dict[str, float] = {
+    "test_pass_rate": 0.25,
+    "lint_clean": 0.12,
+    "diff_sensibility": 0.10,
+    "task_completion": 0.10,
+    "speed_bonus": 0.07,
+    "import_hygiene": 0.07,
+    "complexity": 0.06,
+    "docstring_coverage": 0.07,
+    "type_hint_coverage": 0.07,
+    "comment_density": 0.05,
+    "code_cleanliness": 0.04,
+}
+
+
+def compute_quality_score_weighted(
+    metrics: RunMetrics,
+    weights: Optional[dict[str, float]] = None,
+) -> tuple[float, str]:
+    """
+    Compute quality score with custom weights.
+
+    Each factor scores 0-max_points, then multiplied by weight.
+    Falls back to DEFAULT_WEIGHTS if none provided.
+    """
+    w = weights or DEFAULT_WEIGHTS
+
+    score: float = 0.0
+
+    # Test pass rate
+    if metrics.test_total > 0:
+        score += (metrics.test_pass / metrics.test_total) * 100 * w.get("test_pass_rate", 0.25)
+    else:
+        score += 50 * w.get("test_pass_rate", 0.25)
+
+    # Lint clean
+    if metrics.lint_errors == 0 and metrics.lint_warnings == 0:
+        lint_score = 100
+    elif metrics.lint_errors == 0:
+        lint_score = 50
+    else:
+        lint_score = max(0, 100 - metrics.lint_errors * 20)
+    score += lint_score * w.get("lint_clean", 0.12)
+
+    # Diff sensibility
+    total_changes = metrics.lines_added + metrics.lines_removed
+    if total_changes == 0:
+        diff_score = 0
+    elif total_changes <= 5:
+        diff_score = 50
+    elif total_changes <= 50:
+        diff_score = 100
+    elif total_changes <= 200:
+        diff_score = 70
+    else:
+        diff_score = 30
+    score += diff_score * w.get("diff_sensibility", 0.10)
+
+    # Task completion
+    score += (100 if metrics.exit_code == 0 else 20) * w.get("task_completion", 0.10)
+
+    # Speed bonus
+    duration = metrics.duration_seconds
+    if duration <= 30:
+        speed_score = 100
+    elif duration <= 120:
+        speed_score = 71
+    elif duration <= 300:
+        speed_score = 43
+    elif duration <= 600:
+        speed_score = 14
+    else:
+        speed_score = 0
+    score += speed_score * w.get("speed_bonus", 0.07)
+
+    # Import hygiene
+    import_issues = _count_import_issues(metrics.stdout, metrics.stderr)
+    unused_imports = _count_unused_imports(metrics.stdout)
+    total_import_issues = import_issues + unused_imports
+    if total_import_issues == 0:
+        imp_score = 100
+    elif total_import_issues <= 2:
+        imp_score = 57
+    elif total_import_issues <= 5:
+        imp_score = 29
+    else:
+        imp_score = 0
+    score += imp_score * w.get("import_hygiene", 0.07)
+
+    # Complexity
+    score += compute_complexity_score(metrics.stdout) * w.get("complexity", 0.06)
+
+    # Docstring coverage
+    score += compute_docstring_coverage(metrics.stdout) * w.get("docstring_coverage", 0.07)
+
+    # Type hint coverage
+    score += compute_type_hint_coverage(metrics.stdout) * w.get("type_hint_coverage", 0.07)
+
+    # Comment density
+    comment_density = compute_comment_density(metrics.stdout)
+    if 0.1 <= comment_density <= 0.3:
+        density_score = 100
+    elif comment_density < 0.1:
+        density_score = comment_density * 600
+    else:
+        density_score = max(0, 100 - (comment_density - 0.3) * 300)
+    score += density_score * w.get("comment_density", 0.05)
+
+    # Code cleanliness
+    cleanliness = 100 - _code_cleanliness_penalty(metrics.stdout, metrics.stderr) * 20
+    score += cleanliness * w.get("code_cleanliness", 0.04)
+
+    return min(100, score), _letter_grade(score)
+
+
+def get_scoring_weights(config: Optional[dict] = None) -> dict[str, float]:
+    """Get scoring weights from config, falling back to defaults."""
+    if not config:
+        return dict(DEFAULT_WEIGHTS)
+    custom = config.get("scoring_weights", {})
+    weights = dict(DEFAULT_WEIGHTS)
+    weights.update({k: float(v) for k, v in custom.items() if k in DEFAULT_WEIGHTS})
+    return weights
