@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import json
+
 import click
 
 from . import __version__
@@ -576,4 +578,259 @@ def diff_runs(run_id_a: str, run_id_b: str) -> None:
 
     rc.print(table)
     rc.print(f"\n[dim]A: {run_a.get('task', '?')[:60]}  |  B: {run_b.get('task', '?')[:60]}[/dim]")
+    storage.close()
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# TOP COMMAND
+# ═══════════════════════════════════════════════════════════════════════════
+
+@cli.command()
+@click.option("-n", "--limit", default=10, help="Number of entries to show")
+@click.option("--json", "as_json", is_flag=True, help="Output as JSON")
+def top(limit: int, as_json: bool) -> None:
+    """Show top-performing agent runs across all benchmarks.
+
+    Ranks runs by quality score (descending). Use --json for programmatic use.
+    """
+    storage = Storage()
+    runs = storage.list_runs(limit=1000)
+    if not runs:
+        click.echo("No benchmark runs found. Run 'agent-bench run' first.")
+        storage.close()
+        return
+
+    entries = []
+    for run in runs:
+        run_data = storage.get_run(run["run_id"])
+        if not run_data:
+            continue
+        task = run_data.get("task", "?")[:50]
+        for r in run_data.get("results", []):
+            score = r.get("quality_score", 0)
+            entries.append({
+                "run_id": run_data["run_id"],
+                "agent": r.get("agent_name", "?"),
+                "model": r.get("model", ""),
+                "score": score,
+                "cost": r.get("cost", 0),
+                "duration": r.get("duration_seconds", 0),
+                "task": task,
+                "grade": r.get("quality_grade", ""),
+            })
+
+    entries.sort(key=lambda x: x["score"], reverse=True)
+    entries = entries[:limit]
+
+    if as_json:
+        click.echo(json.dumps(entries, indent=2))
+        storage.close()
+        return
+
+    from rich.console import Console as RichConsole
+    from rich.table import Table as RichTable
+    from rich import box as rich_box
+
+    rc = RichConsole()
+    table = RichTable(
+        title=f"Top {limit} Agent Runs",
+        box=rich_box.ROUNDED,
+        title_style="bold cyan",
+    )
+    table.add_column("#", justify="right", style="dim")
+    table.add_column("Agent", style="bold")
+    table.add_column("Model", style="dim")
+    table.add_column("Score", justify="right", style="bold yellow")
+    table.add_column("Grade", justify="center")
+    table.add_column("Cost", justify="right")
+    table.add_column("Time", justify="right")
+    table.add_column("Task", style="dim", max_width=40)
+
+    for i, e in enumerate(entries, 1):
+        table.add_row(
+            str(i),
+            e["agent"],
+            e["model"],
+            f"{e['score']:.0f}",
+            e["grade"],
+            f"${e['cost']:.4f}",
+            _fmt_dur(e["duration"]),
+            e["task"],
+        )
+
+    rc.print(table)
+    storage.close()
+
+
+def _fmt_dur(seconds: float) -> str:
+    """Format duration in human-readable form."""
+    if seconds < 60:
+        return f"{seconds:.0f}s"
+    minutes = int(seconds // 60)
+    secs = int(seconds % 60)
+    if minutes < 60:
+        return f"{minutes}m {secs}s"
+    hours = int(minutes // 60)
+    mins = minutes % 60
+    return f"{hours}h {mins}m"
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# COST-REPORT COMMAND
+# ═══════════════════════════════════════════════════════════════════════════
+
+@cli.command(name="cost-report")
+@click.option("--json", "as_json", is_flag=True, help="Output as JSON")
+def cost_report(as_json: bool) -> None:
+    """Show cost analysis across all runs: total, average, by agent, by model."""
+    storage = Storage()
+    runs = storage.list_runs(limit=1000)
+    if not runs:
+        click.echo("No benchmark runs found.")
+        storage.close()
+        return
+
+    total_cost = 0.0
+    total_runs = 0
+    agent_costs: dict[str, list[float]] = {}
+    model_costs: dict[str, list[float]] = {}
+
+    for run in runs:
+        run_data = storage.get_run(run["run_id"])
+        if not run_data:
+            continue
+        for r in run_data.get("results", []):
+            cost = r.get("cost", 0)
+            model = r.get("model", "unknown")
+            agent_name = r.get("agent_name", "?")
+            total_cost += cost
+            total_runs += 1
+            agent_costs.setdefault(agent_name, []).append(cost)
+            model_costs.setdefault(model, []).append(cost)
+
+    avg_cost = total_cost / total_runs if total_runs else 0
+
+    agent_summary = {
+        name: {"total": sum(costs), "avg": sum(costs) / len(costs), "runs": len(costs)}
+        for name, costs in sorted(agent_costs.items(), key=lambda x: sum(x[1]), reverse=True)
+    }
+    model_summary = {
+        name: {"total": sum(costs), "avg": sum(costs) / len(costs), "runs": len(costs)}
+        for name, costs in sorted(model_costs.items(), key=lambda x: sum(x[1]), reverse=True)
+    }
+
+    if as_json:
+        click.echo(json.dumps({
+            "total_cost": total_cost,
+            "total_runs": total_runs,
+            "avg_cost_per_run": avg_cost,
+            "by_agent": agent_summary,
+            "by_model": model_summary,
+        }, indent=2))
+        storage.close()
+        return
+
+    from rich.console import Console as RichConsole
+    from rich.table import Table as RichTable
+    from rich.panel import Panel
+    from rich import box as rich_box
+
+    rc = RichConsole()
+
+    # Summary
+    rc.print(Panel(
+        f"Total Cost: [bold yellow]${total_cost:.4f}[/bold yellow]  |  "
+        f"Runs: {total_runs}  |  "
+        f"Avg: [yellow]${avg_cost:.4f}[/yellow]/run",
+        title="Cost Report",
+        border_style="cyan",
+    ))
+
+    # By agent
+    if agent_summary:
+        table = RichTable(title="Cost by Agent", box=rich_box.ROUNDED, title_style="bold cyan")
+        table.add_column("Agent", style="bold")
+        table.add_column("Runs", justify="right")
+        table.add_column("Total Cost", justify="right", style="bold yellow")
+        table.add_column("Avg Cost", justify="right")
+        for name, stats in agent_summary.items():
+            table.add_row(name, str(stats["runs"]), f"${stats['total']:.4f}", f"${stats['avg']:.4f}")
+        rc.print(table)
+
+    # By model
+    if model_summary:
+        table = RichTable(title="Cost by Model", box=rich_box.ROUNDED, title_style="bold cyan")
+        table.add_column("Model", style="bold")
+        table.add_column("Runs", justify="right")
+        table.add_column("Total Cost", justify="right", style="bold yellow")
+        table.add_column("Avg Cost", justify="right")
+        for name, stats in model_summary.items():
+            table.add_row(name, str(stats["runs"]), f"${stats['total']:.4f}", f"${stats['avg']:.4f}")
+        rc.print(table)
+
+    storage.close()
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# EXPORT-RANKS COMMAND
+# ═══════════════════════════════════════════════════════════════════════════
+
+@cli.command(name="export-ranks")
+@click.option("--format", "fmt", type=click.Choice(["json", "csv", "markdown"]), default="json", help="Output format")
+@click.option("--output", "-o", type=str, default=None, help="Output file path")
+def export_ranks(fmt: str, output: str | None) -> None:
+    """Export agent rankings for sharing or CI comparison."""
+    storage = Storage()
+    runs = storage.list_runs(limit=1000)
+    if not runs:
+        click.echo("No runs found.")
+        storage.close()
+        return
+
+    entries = []
+    for run in runs:
+        run_data = storage.get_run(run["run_id"])
+        if not run_data:
+            continue
+        for r in run_data.get("results", []):
+            entries.append({
+                "run_id": run_data["run_id"],
+                "agent": r.get("agent_name", "?"),
+                "model": r.get("model", ""),
+                "quality_score": r.get("quality_score", 0),
+                "cost": r.get("cost", 0),
+                "duration_sec": r.get("duration_seconds", 0),
+                "tokens_in": r.get("tokens_in", 0),
+                "tokens_out": r.get("tokens_out", 0),
+                "grade": r.get("quality_grade", ""),
+                "task": run_data.get("task", ""),
+            })
+
+    entries.sort(key=lambda x: x["quality_score"], reverse=True)
+
+    if fmt == "json":
+        out = json.dumps(entries, indent=2)
+    elif fmt == "csv":
+        import csv, io
+        buf = io.StringIO()
+        if entries:
+            writer = csv.DictWriter(buf, fieldnames=entries[0].keys())
+            writer.writeheader()
+            writer.writerows(entries)
+        out = buf.getvalue()
+    elif fmt == "markdown":
+        lines = ["| # | Agent | Model | Score | Grade | Cost | Duration |", "|---|---|---|---|---|---|---|"]
+        for i, e in enumerate(entries, 1):
+            lines.append(f"| {i} | {e['agent']} | {e['model']} | {e['quality_score']:.0f} | {e['grade']} | ${e['cost']:.4f} | {e['duration_sec']:.0f}s |")
+        out = "\n".join(lines) + "\n"
+    else:
+        out = json.dumps(entries, indent=2)
+
+    if output:
+        with open(output, "w") as f:
+            f.write(out)
+        click.echo(f"Exported {len(entries)} entries to {output}")
+    else:
+        click.echo(out)
+
     storage.close()
