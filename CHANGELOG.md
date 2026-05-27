@@ -1,5 +1,24 @@
 # Changelog
 
+## 0.8.0 (2026-05-27)
+
+### Bug Fixes
+- Fixed `top` command: now properly fetches run data via `get_run()` and iterates results as list
+- Fixed `cost-report` command: now properly fetches run data via `get_run()` and iterates results as list
+- Fixed `export-ranks` command: now properly fetches run data via `get_run()` and iterates results as list
+- Fixed `test_v08.py`: `_seed_runs()` now uses correct `save_run(run_id, task, results_list)` API
+- Added module-level `import json` for top/cost-report/export-ranks commands
+- All 382 legacy tests now passing (was 374 pass + 8 fail)
+
+### Tests
+- 46 new edge case tests for storage, scorer, pricing, and CLI commands
+- Storage: empty results, special chars in tasks, concurrent runs, nonexistent lookups
+- Scorer: perfect/zero/failure scores, empty code, syntax errors, type hints, docstrings
+- Scorer: letter grade boundaries (A through F), weighted scoring with custom weights
+- CLI: empty history, nonexistent runs, weights command, leaderboard, export-ranks edge cases
+- Total: 428 tests passing
+
+
 ## 0.7.1 (2026-05-27)
 
 ### New Features
