@@ -33,6 +33,16 @@ TOKEN_PATTERNS: list[re.Pattern[str]] = [
     re.compile(r"(\d[\d,]*)\s*(?:input|in)\s*.*?(\d[\d,]*)\s*(?:output|out)", re.I),
     # "X/Y tokens" or "used X tokens"
     re.compile(r"(\d[\d,]*)\s*tokens?\s*(?:in|input)?[,\s]+(\d[\d,]*)\s*tokens?\s*(?:out|output)?", re.I),
+    # Codex CLI: "Tokens: X in / Y out" or "X input tokens, Y output tokens"
+    re.compile(r"(\d[\d,]*)\s*(?:input|in)\s*[/,]\s*(\d[\d,]*)\s*(?:output|out)", re.I),
+    # Gemini: "Input tokens: X\nOutput tokens: Y" (multiline)
+    re.compile(r"[Ii]nput\s*tokens?\s*[:\s]+(\d[\d,]*).*?[Oo]utput\s*tokens?\s*[:\s]+(\d[\d,]*)", re.S),
+    # OpenAI API style: "prompt_tokens: X, completion_tokens: Y"
+    re.compile(r"prompt.tokens?\s*[:\s]+(\d[\d,]*).*?completion.tokens?\s*[:\s]+(\d[\d,]*)", re.I | re.S),
+    # Anthropic API: "input_tokens: X, output_tokens: Y" (JSON-like)
+    re.compile(r"input.tokens?\s*[:\s]+(\d[\d,]*).*?output.tokens?\s*[:\s]+(\d[\d,]*)", re.I | re.S),
+    # Compact: "Xin/Yout" or "Xin Yout"
+    re.compile(r"(\d[\d,]*)\s*in\s*[/\s]\s*(\d[\d,]*)\s*out", re.I),
 ]
 
 

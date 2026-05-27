@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.7.1 (2026-05-27)
+
+### New Features
+- **Expanded agent detection**: Added cursor, kiro, auggie, goose to KNOWN_AGENTS and BINARY_MAP (11 agents total)
+- **Additional token parsing patterns**: 5 new regex patterns for Codex CLI, Gemini multiline, OpenAI API, Anthropic API, and compact formats (8 patterns total)
+- **Storage utility methods**: `get_all_agent_names()`, `get_run_count()`, `get_agent_stats()` for aggregate analysis
+- **Agent statistics**: Per-agent aggregate stats (avg/best/worst score, total tokens, total cost, test pass rate)
+
+### Tests
+- 27 new tests for v0.7.1 features
+- Expanded detector: 10 tests (agent registration, binary map, detection)
+- Expanded token patterns: 11 tests (Codex, Gemini, OpenAI, Anthropic, compact formats, edge cases)
+- New storage methods: 8 tests (agent names, run count, aggregate stats, isolation)
+- All 360 tests passing
+
+
 ## 0.6.0 (2026-05-25)
 
 ### New Features

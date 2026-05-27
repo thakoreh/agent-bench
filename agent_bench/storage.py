@@ -154,3 +154,51 @@ class Storage:
         if self._conn:
             self._conn.close()
             self._conn = None
+
+    def get_all_agent_names(self) -> list[str]:
+        """Get unique agent names across all runs."""
+        conn = self._get_conn()
+        rows = conn.execute(
+            "SELECT DISTINCT agent_name FROM agent_results ORDER BY agent_name"
+        ).fetchall()
+        return [r["agent_name"] for r in rows]
+
+    def get_run_count(self) -> int:
+        """Get total number of runs."""
+        conn = self._get_conn()
+        row = conn.execute("SELECT COUNT(*) as cnt FROM runs").fetchone()
+        return row["cnt"] if row else 0
+
+    def get_agent_stats(self, agent_name: str) -> dict[str, Any]:
+        """Get aggregate statistics for a specific agent."""
+        conn = self._get_conn()
+        row = conn.execute(
+            """SELECT
+                COUNT(*) as run_count,
+                AVG(quality_score) as avg_score,
+                MAX(quality_score) as best_score,
+                MIN(quality_score) as worst_score,
+                AVG(duration_seconds) as avg_duration,
+                SUM(tokens_in) as total_tokens_in,
+                SUM(tokens_out) as total_tokens_out,
+                SUM(cost) as total_cost,
+                SUM(test_pass) as total_tests_passed,
+                SUM(test_total) as total_tests_run
+               FROM agent_results WHERE agent_name = ?""",
+            (agent_name,),
+        ).fetchone()
+        if not row or row["run_count"] == 0:
+            return {"agent_name": agent_name, "run_count": 0}
+        return {
+            "agent_name": agent_name,
+            "run_count": row["run_count"],
+            "avg_score": round(row["avg_score"] or 0, 1),
+            "best_score": round(row["best_score"] or 0, 1),
+            "worst_score": round(row["worst_score"] or 0, 1),
+            "avg_duration": round(row["avg_duration"] or 0, 1),
+            "total_tokens_in": row["total_tokens_in"] or 0,
+            "total_tokens_out": row["total_tokens_out"] or 0,
+            "total_cost": round(row["total_cost"] or 0, 4),
+            "total_tests_passed": row["total_tests_passed"] or 0,
+            "total_tests_run": row["total_tests_run"] or 0,
+        }

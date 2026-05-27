@@ -31,6 +31,10 @@ KNOWN_AGENTS: dict[str, list[str]] = {
     "aider": ["aider", "--version"],
     "hermes": ["hermes", "--version"],
     "opencode": ["opencode", "--version"],
+    "cursor": ["cursor", "--version"],
+    "kiro": ["kiro", "--version"],
+    "auggie": ["auggie", "--version"],
+    "goose": ["goose", "--version"],
 }
 
 # Map binary names to agent names for detection
@@ -42,6 +46,10 @@ BINARY_MAP: dict[str, str] = {
     "aider": "aider",
     "hermes": "hermes",
     "opencode": "opencode",
+    "cursor": "cursor",
+    "kiro": "kiro",
+    "auggie": "auggie",
+    "goose": "goose",
 }
 
 
